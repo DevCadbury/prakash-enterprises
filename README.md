@@ -138,8 +138,8 @@ npm start           # Start production server
 
 ### Default Dev Account
 
-- **Email**: prince844121@gmail.com
-- **Password**: 1234okay
+- **Email**: 
+- **Password**: 
 - **Role**: dev (full access)
 
 ### Role Permissions
@@ -256,3 +256,4 @@ For support or questions, please contact:
 ---
 
 **Built with ❤️ for Prakash Enterprises**
+
