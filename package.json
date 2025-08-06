@@ -1,0 +1,55 @@
+{
+  "name": "prakash-enterprises",
+  "version": "1.0.0",
+  "description": "Professional landing page for PRAKASH ENTERPRISES - Loans & Insurance Services",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "nodemon server.js",
+    "client": "cd client && npm start",
+    "build": "cd client && npm run build",
+    "install-client": "cd client && npm install",
+    "heroku-postbuild": "npm run install-client && npm run build",
+    "vercel-build": "npm run install-client && npm run build",
+    "start": "node server.js",
+    "setup": "node setup.js",
+    "fix-frontend": "node fix-frontend.js",
+    "test-frontend": "node test-frontend.js",
+    "test-compile": "node test-compile.js",
+    "test-server": "node test-server.js",
+    "check-dev": "node start-dev.js",
+    "setup-dev": "node setup-dev.js",
+    "test-all": "node test-all-apis.js",
+    "deploy": "bash deploy-to-vercel.sh",
+    "commit": "bash commit-to-github.sh"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
+    "express-validator": "^7.2.1",
+    "helmet": "^7.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.17.0",
+    "nodemailer": "^6.9.7",
+    "react-router-dom": "^6.30.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  },
+  "keywords": [
+    "react",
+    "nodejs",
+    "express",
+    "nodemailer",
+    "tailwind",
+    "landing-page"
+  ],
+  "author": "PRAKASH ENTERPRISES",
+  "license": "MIT"
+}
