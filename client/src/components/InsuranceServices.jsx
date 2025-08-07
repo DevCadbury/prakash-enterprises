@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Card,
@@ -16,21 +16,12 @@ import {
   Heart,
   Car,
   Bike,
-  Home,
-  Plane,
   ArrowRight,
   CheckCircle,
-  Star,
   Zap,
-  TrendingUp,
-  Sparkles,
-  DollarSign,
-  Clock,
-  Users,
   Award,
   X,
   FileText,
-  Calendar,
 } from "lucide-react";
 
 const InsuranceServices = () => {

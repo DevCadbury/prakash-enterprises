@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/Input";
@@ -10,15 +9,12 @@ import {
   MessageSquare,
   Mail,
   Phone,
-  MapPin,
   Clock,
   Search,
-  Filter,
   Reply,
   Eye,
   Edit,
   Trash2,
-  Plus,
   LogOut,
   Settings,
   UserPlus,
@@ -30,25 +26,18 @@ import {
   X,
   CheckCircle,
   AlertCircle,
-  Download,
   FileText,
   FileSpreadsheet,
   File,
   Send,
   Upload,
-  Template,
   Activity,
   Zap,
-  Target,
   Users2,
   MailCheck,
   MailX,
-  MailClock,
-  BellRing,
-  BadgeAlert,
   Shield,
   Crown,
-  UserCheck,
   Globe,
   PieChart,
   LineChart,
@@ -380,7 +369,7 @@ const AdminDashboard = () => {
     recipients: [],
     customRecipients: "",
   });
-  const [promotionTemplates, setPromotionTemplates] = useState([
+  const [promotionTemplates] = useState([
     {
       id: 1,
       name: "Welcome Offer",

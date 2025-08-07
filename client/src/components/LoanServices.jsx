@@ -18,18 +18,12 @@ import {
   Car,
   ArrowRight,
   CheckCircle,
-  Star,
   Zap,
-  TrendingUp,
   Shield,
   Sparkles,
-  DollarSign,
-  Clock,
-  Users,
   Award,
   X,
   FileText,
-  Calendar,
 } from "lucide-react";
 
 const LoanServices = () => {
