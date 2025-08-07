@@ -16,7 +16,6 @@ import {
   MessageCircle,
   Building,
   Calendar,
-  User,
   FileText,
 } from "lucide-react";
 

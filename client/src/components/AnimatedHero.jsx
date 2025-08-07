@@ -1,17 +1,5 @@
-import React, {
-  useEffect,
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-} from "react";
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useSpring,
-  AnimatePresence,
-} from "framer-motion";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "./ui/button";
 import {
   Building2,
@@ -19,10 +7,7 @@ import {
   TrendingUp,
   Users,
   ArrowRight,
-  Star,
-  Zap,
   Heart,
-  Globe,
   Award,
   ArrowUpRight,
   Play,
@@ -30,11 +15,7 @@ import {
 
 const AnimatedHero = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [showStats, setShowStats] = useState(true);
-  const [isMobile, setIsMobile] = useState(false);
-  const canvasRef = useRef(null);
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 300], [0, -100]);
+  const [showStats] = useState(true);
 
   // Memoize data points to prevent recreation
   const dataPoints = useMemo(
@@ -458,7 +439,7 @@ const AnimatedHero = () => {
   }, []);
 
   const handleResize = useCallback(() => {
-    setIsMobile(window.innerWidth < 768);
+    // Mobile detection removed for performance
   }, []);
 
   useEffect(() => {

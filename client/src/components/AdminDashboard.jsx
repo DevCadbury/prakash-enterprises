@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/Input";
@@ -692,7 +692,7 @@ const AdminDashboard = () => {
     showToast("PDF export feature coming soon", "info");
   };
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/notifications`, {
@@ -708,7 +708,7 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error fetching notifications:", error);
     }
-  };
+  }, [API_BASE]);
 
   const markNotificationAsRead = async (notificationId) => {
     try {
@@ -846,7 +846,7 @@ const AdminDashboard = () => {
     reader.readAsText(file);
   };
 
-  const fetchPromotionHistory = async () => {
+  const fetchPromotionHistory = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/promotions`, {
@@ -861,9 +861,9 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error fetching promotion history:", error);
     }
-  };
+  }, [API_BASE]);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/dashboard`, {
@@ -878,9 +878,9 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
     }
-  };
+  }, [API_BASE]);
 
-  const fetchVisitorStats = async () => {
+  const fetchVisitorStats = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/visitor-stats`, {
@@ -899,9 +899,9 @@ const AdminDashboard = () => {
       console.error("Error fetching visitor stats:", error);
       showToast("Failed to fetch visitor stats", "error");
     }
-  };
+  }, [API_BASE]);
 
-  const fetchNotificationEmails = async () => {
+  const fetchNotificationEmails = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/notification-emails`, {
@@ -920,7 +920,7 @@ const AdminDashboard = () => {
       console.error("Error fetching notification emails:", error);
       showToast("Failed to fetch notification email settings", "error");
     }
-  };
+  }, [API_BASE]);
 
   const updateNotificationEmails = async (type) => {
     try {
@@ -981,33 +981,41 @@ const AdminDashboard = () => {
     }));
   };
 
-  const fetchAdminLogs = async (page = 1) => {
-    try {
-      const token = localStorage.getItem("adminToken");
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: logsPagination.limit.toString(),
-        ...(logsFilters.action && { action: logsFilters.action }),
-        ...(logsFilters.performedBy && {
-          performedBy: logsFilters.performedBy,
-        }),
-      });
+  const fetchAdminLogs = useCallback(
+    async (page = 1) => {
+      try {
+        const token = localStorage.getItem("adminToken");
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: logsPagination.limit.toString(),
+          ...(logsFilters.action && { action: logsFilters.action }),
+          ...(logsFilters.performedBy && {
+            performedBy: logsFilters.performedBy,
+          }),
+        });
 
-      const response = await fetch(`${API_BASE}/logs?${params}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      if (data.success) {
-        setAdminLogs(data.data);
-        setLogsPagination(data.pagination);
+        const response = await fetch(`${API_BASE}/logs?${params}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setAdminLogs(data.data);
+          setLogsPagination(data.pagination);
+        }
+      } catch (error) {
+        console.error("Error fetching admin logs:", error);
+        showToast("Failed to fetch admin logs", "error");
       }
-    } catch (error) {
-      console.error("Error fetching admin logs:", error);
-      showToast("Failed to fetch admin logs", "error");
-    }
-  };
+    },
+    [
+      API_BASE,
+      logsPagination.limit,
+      logsFilters.action,
+      logsFilters.performedBy,
+    ]
+  );
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1174,7 +1182,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchContacts = async () => {
+  const fetchContacts = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/contacts`, {
@@ -1205,9 +1213,9 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error fetching contacts:", error);
     }
-  };
+  }, [API_BASE, lastContactCount]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/users`, {
@@ -1222,7 +1230,7 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error("Error fetching users:", error);
     }
-  };
+  }, [API_BASE]);
 
   const handleReply = async () => {
     if (!replyMessage.trim()) {
@@ -1439,7 +1447,18 @@ const AdminDashboard = () => {
       const interval = setInterval(fetchNotifications, 30000); // Every 30 seconds
       return () => clearInterval(interval);
     }
-  }, [currentView, isAuthenticated]);
+  }, [
+    currentView,
+    isAuthenticated,
+    fetchContacts,
+    fetchUsers,
+    fetchPromotionHistory,
+    fetchDashboardData,
+    fetchVisitorStats,
+    fetchNotificationEmails,
+    fetchAdminLogs,
+    fetchNotifications,
+  ]);
 
   if (!isAuthenticated) {
     return (

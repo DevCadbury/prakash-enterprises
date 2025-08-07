@@ -13,8 +13,6 @@ import {
   ArrowRight,
   Heart,
   Star,
-  Zap,
-  Globe,
   Award,
   Shield,
   Users,
@@ -23,8 +21,6 @@ import {
 } from "lucide-react";
 
 const Footer = () => {
-  const currentYear = new Date().getFullYear();
-
   const footerSections = [
     {
       title: "Company",
