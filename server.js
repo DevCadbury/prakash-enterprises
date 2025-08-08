@@ -1912,20 +1912,9 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Catch-all route for React app
-app.get("*", (req, res) => {
-  if (process.env.NODE_ENV === "production") {
-    const indexPath = path.join(__dirname, "client/build/index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).json({
-        success: false,
-        message:
-          "Production build not found. Please run 'npm run build' first.",
-      });
-    }
-  } else {
+// Catch-all route for React app (only in development)
+if (process.env.NODE_ENV !== "production") {
+  app.get("*", (req, res) => {
     res.json({
       success: false,
       message: "API endpoint not found",
@@ -1950,8 +1939,8 @@ app.get("*", (req, res) => {
         "GET /api/admin/promotions",
       ],
     });
-  }
-});
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
