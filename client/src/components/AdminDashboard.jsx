@@ -520,7 +520,7 @@ const AdminDashboard = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const API_BASE = API_CONFIG.getAdminURL("login").replace("/login", "");
+  const API_BASE = API_CONFIG.getBaseURL() + "/api/admin";
   const notificationRef = useRef(null);
 
   // Helper function to get token from storage
@@ -539,7 +539,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     const checkAuth = async () => {
       // Define API_BASE inside useEffect to avoid dependency issues
-      const apiBase = API_CONFIG.getAdminURL("login").replace("/login", "");
+      const apiBase = API_CONFIG.getBaseURL() + "/api/admin";
 
       // Check both localStorage and sessionStorage for token
       const token = getAuthToken();
