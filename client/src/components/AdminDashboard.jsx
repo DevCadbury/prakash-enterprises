@@ -558,9 +558,7 @@ const AdminDashboard = () => {
 
       // First check if server is reachable
       try {
-        const healthResponse = await fetch(
-          `${apiBase.replace("/api/admin", "")}/api/health`
-        );
+        await fetch(`${apiBase.replace("/api/admin", "")}/api/health`);
       } catch (healthError) {
         // Server not reachable, continue with token verification
       }
