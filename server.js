@@ -1912,9 +1912,6 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Serve static files from the React build
-app.use(express.static(path.join(__dirname, "client/build")));
-
 // Catch-all route for React app
 app.get("*", (req, res) => {
   // Skip API routes
@@ -1925,15 +1922,22 @@ app.get("*", (req, res) => {
     });
   }
 
-  // Serve React app for all other routes
-  const indexPath = path.join(__dirname, "client/build/index.html");
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
+  // Check if the request is for a static file
+  const filePath = path.join(__dirname, "client/build", req.path);
+  if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
+    // Serve static file with correct MIME type
+    res.sendFile(filePath);
   } else {
-    res.status(404).json({
-      success: false,
-      message: "Production build not found. Please run 'npm run build' first.",
-    });
+    // Serve React app for all other routes
+    const indexPath = path.join(__dirname, "client/build/index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Production build not found. Please run 'npm run build' first.",
+      });
+    }
   }
 });
 
