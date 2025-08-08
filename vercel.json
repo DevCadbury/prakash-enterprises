@@ -38,6 +38,26 @@
       "dest": "/client/build/robots.txt"
     },
     {
+      "src": "/admin",
+      "dest": "/client/build/index.html"
+    },
+    {
+      "src": "/admin/(.*)",
+      "dest": "/client/build/index.html"
+    },
+    {
+      "src": "/contact",
+      "dest": "/client/build/index.html"
+    },
+    {
+      "src": "/services",
+      "dest": "/client/build/index.html"
+    },
+    {
+      "src": "/about",
+      "dest": "/client/build/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "/client/build/index.html"
     }
