@@ -29,7 +29,12 @@
       "react-app/jest"
     ]
   },
-  "proxy": "http://localhost:5000",
+  "proxy": {
+    "/api": {
+      "target": "http://localhost:5000",
+      "changeOrigin": true
+    }
+  },
   "browserslist": {
     "production": [
       ">0.2%",
