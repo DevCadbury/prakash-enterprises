@@ -26,8 +26,7 @@ const tokenBlacklistSchema = new mongoose.Schema(
   }
 );
 
-// Index for efficient queries
-tokenBlacklistSchema.index({ token: 1 });
+// Index for efficient queries (removed duplicate token index since unique: true already creates one)
 tokenBlacklistSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 module.exports = mongoose.model("TokenBlacklist", tokenBlacklistSchema);
