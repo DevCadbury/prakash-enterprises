@@ -76,3 +76,4 @@ test-*.js
 
 # Deployment files
 .vercel/ 
+.vercel

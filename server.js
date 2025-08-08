@@ -1912,9 +1912,8 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Catch-all route for React app
+// Catch-all route for React app (only in development)
 if (process.env.NODE_ENV !== "production") {
-  // Development: Show API endpoints
   app.get("*", (req, res) => {
     res.json({
       success: false,
@@ -1940,28 +1939,6 @@ if (process.env.NODE_ENV !== "production") {
         "GET /api/admin/promotions",
       ],
     });
-  });
-} else {
-  // Production: Serve React app for all non-API routes
-  app.get("*", (req, res) => {
-    // Skip API routes
-    if (req.path.startsWith('/api/')) {
-      return res.status(404).json({
-        success: false,
-        message: "API endpoint not found"
-      });
-    }
-    
-    // Serve React app for all other routes
-    const indexPath = path.join(__dirname, "client/build/index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).json({
-        success: false,
-        message: "Production build not found. Please run 'npm run build' first."
-      });
-    }
   });
 }
 
