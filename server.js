@@ -1912,52 +1912,29 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Serve static files from the React build with correct MIME types
-app.use(express.static(path.join(__dirname, "client/build"), {
-  setHeaders: (res, path) => {
-    const ext = path.extname(path).toLowerCase();
-    if (ext === ".js") {
-      res.setHeader("Content-Type", "application/javascript");
-    } else if (ext === ".css") {
-      res.setHeader("Content-Type", "text/css");
-    } else if (ext === ".json") {
-      res.setHeader("Content-Type", "application/json");
-    } else if (ext === ".png") {
-      res.setHeader("Content-Type", "image/png");
-    } else if (ext === ".jpg" || ext === ".jpeg") {
-      res.setHeader("Content-Type", "image/jpeg");
-    } else if (ext === ".gif") {
-      res.setHeader("Content-Type", "image/gif");
-    } else if (ext === ".svg") {
-      res.setHeader("Content-Type", "image/svg+xml");
-    } else if (ext === ".ico") {
-      res.setHeader("Content-Type", "image/x-icon");
+// Catch-all route for React app (only in development)
+if (process.env.NODE_ENV !== "production") {
+  app.get("*", (req, res) => {
+    // Skip API routes
+    if (req.path.startsWith("/api/")) {
+      return res.status(404).json({
+        success: false,
+        message: "API endpoint not found",
+      });
     }
-  }
-}));
 
-// Catch-all route for React app
-app.get("*", (req, res) => {
-  // Skip API routes
-  if (req.path.startsWith("/api/")) {
-    return res.status(404).json({
-      success: false,
-      message: "API endpoint not found",
-    });
-  }
-
-  // Serve React app for all other routes
-  const indexPath = path.join(__dirname, "client/build/index.html");
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).json({
-      success: false,
-      message:
-        "Production build not found. Please run 'npm run build' first.",
-    });
-  }
-});
+    // Serve React app for all other routes
+    const indexPath = path.join(__dirname, "client/build/index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).json({
+        success: false,
+        message: "Production build not found. Please run 'npm run build' first.",
+      });
+    }
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
