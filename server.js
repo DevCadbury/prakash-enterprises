@@ -1912,35 +1912,30 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Catch-all route for React app (only in development)
-if (process.env.NODE_ENV !== "production") {
-  app.get("*", (req, res) => {
-    res.json({
+// Serve static files from the React build
+app.use(express.static(path.join(__dirname, "client/build")));
+
+// Catch-all route for React app
+app.get("*", (req, res) => {
+  // Skip API routes
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({
       success: false,
       message: "API endpoint not found",
-      availableEndpoints: [
-        "POST /api/contact",
-        "POST /api/admin/login",
-        "POST /api/admin/forgot-password",
-        "POST /api/admin/reset-password",
-        "GET /api/admin/dashboard",
-        "GET /api/admin/visitor-stats",
-        "GET /api/admin/contacts",
-        "PUT /api/admin/contacts/:id",
-        "POST /api/admin/contacts/:id/reply",
-        "POST /api/admin/contacts/:id/email",
-        "GET /api/admin/users",
-        "POST /api/admin/users",
-        "DELETE /api/admin/users/:id",
-        "GET /api/admin/logs",
-        "GET /api/admin/notifications",
-        "PUT /api/admin/notifications/:id/read",
-        "POST /api/admin/promotions/send",
-        "GET /api/admin/promotions",
-      ],
     });
-  });
-}
+  }
+
+  // Serve React app for all other routes
+  const indexPath = path.join(__dirname, "client/build/index.html");
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({
+      success: false,
+      message: "Production build not found. Please run 'npm run build' first.",
+    });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

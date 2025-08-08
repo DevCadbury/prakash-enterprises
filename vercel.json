@@ -7,13 +7,6 @@
       "config": {
         "maxDuration": 30
       }
-    },
-    {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
     }
   ],
   "routes": [
@@ -22,36 +15,8 @@
       "dest": "/server.js"
     },
     {
-      "src": "/static/(.*)",
-      "dest": "/client/build/static/$1"
-    },
-    {
-      "src": "/favicon.ico",
-      "dest": "/client/build/favicon.ico"
-    },
-    {
-      "src": "/manifest.json",
-      "dest": "/client/build/manifest.json"
-    },
-    {
-      "src": "/robots.txt",
-      "dest": "/client/build/robots.txt"
-    },
-    {
-      "src": "/icon1.png",
-      "dest": "/client/build/icon1.png"
-    },
-    {
-      "src": "/22920.jpg",
-      "dest": "/client/build/22920.jpg"
-    },
-    {
-      "src": "/asset-manifest.json",
-      "dest": "/client/build/asset-manifest.json"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/client/build/index.html"
+      "dest": "/server.js"
     }
   ],
   "env": {
