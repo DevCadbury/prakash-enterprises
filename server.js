@@ -1935,7 +1935,8 @@ app.get("*", (req, res) => {
     } else {
       res.status(404).json({
         success: false,
-        message: "Production build not found. Please run 'npm run build' first.",
+        message:
+          "Production build not found. Please run 'npm run build' first.",
       });
     }
   }
