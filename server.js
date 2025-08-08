@@ -1912,6 +1912,30 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
+// Serve static files from the React build with correct MIME types
+app.use(express.static(path.join(__dirname, "client/build"), {
+  setHeaders: (res, path) => {
+    const ext = path.extname(path).toLowerCase();
+    if (ext === ".js") {
+      res.setHeader("Content-Type", "application/javascript");
+    } else if (ext === ".css") {
+      res.setHeader("Content-Type", "text/css");
+    } else if (ext === ".json") {
+      res.setHeader("Content-Type", "application/json");
+    } else if (ext === ".png") {
+      res.setHeader("Content-Type", "image/png");
+    } else if (ext === ".jpg" || ext === ".jpeg") {
+      res.setHeader("Content-Type", "image/jpeg");
+    } else if (ext === ".gif") {
+      res.setHeader("Content-Type", "image/gif");
+    } else if (ext === ".svg") {
+      res.setHeader("Content-Type", "image/svg+xml");
+    } else if (ext === ".ico") {
+      res.setHeader("Content-Type", "image/x-icon");
+    }
+  }
+}));
+
 // Catch-all route for React app
 app.get("*", (req, res) => {
   // Skip API routes
@@ -1922,47 +1946,16 @@ app.get("*", (req, res) => {
     });
   }
 
-  // Check if the request is for a static file
-  const filePath = path.join(__dirname, "client/build", req.path);
-  if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
-    // Set correct MIME type based on file extension
-    const ext = path.extname(filePath).toLowerCase();
-    let mimeType = "application/octet-stream";
-    
-    if (ext === ".js") {
-      mimeType = "application/javascript";
-    } else if (ext === ".css") {
-      mimeType = "text/css";
-    } else if (ext === ".html") {
-      mimeType = "text/html";
-    } else if (ext === ".json") {
-      mimeType = "application/json";
-    } else if (ext === ".png") {
-      mimeType = "image/png";
-    } else if (ext === ".jpg" || ext === ".jpeg") {
-      mimeType = "image/jpeg";
-    } else if (ext === ".gif") {
-      mimeType = "image/gif";
-    } else if (ext === ".svg") {
-      mimeType = "image/svg+xml";
-    } else if (ext === ".ico") {
-      mimeType = "image/x-icon";
-    }
-    
-    res.setHeader("Content-Type", mimeType);
-    res.sendFile(filePath);
+  // Serve React app for all other routes
+  const indexPath = path.join(__dirname, "client/build/index.html");
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
   } else {
-    // Serve React app for all other routes
-    const indexPath = path.join(__dirname, "client/build/index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
-    } else {
-      res.status(404).json({
-        success: false,
-        message:
-          "Production build not found. Please run 'npm run build' first.",
-      });
-    }
+    res.status(404).json({
+      success: false,
+      message:
+        "Production build not found. Please run 'npm run build' first.",
+    });
   }
 });
 
