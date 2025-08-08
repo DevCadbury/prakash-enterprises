@@ -1925,7 +1925,31 @@ app.get("*", (req, res) => {
   // Check if the request is for a static file
   const filePath = path.join(__dirname, "client/build", req.path);
   if (fs.existsSync(filePath) && !fs.statSync(filePath).isDirectory()) {
-    // Serve static file with correct MIME type
+    // Set correct MIME type based on file extension
+    const ext = path.extname(filePath).toLowerCase();
+    let mimeType = "application/octet-stream";
+    
+    if (ext === ".js") {
+      mimeType = "application/javascript";
+    } else if (ext === ".css") {
+      mimeType = "text/css";
+    } else if (ext === ".html") {
+      mimeType = "text/html";
+    } else if (ext === ".json") {
+      mimeType = "application/json";
+    } else if (ext === ".png") {
+      mimeType = "image/png";
+    } else if (ext === ".jpg" || ext === ".jpeg") {
+      mimeType = "image/jpeg";
+    } else if (ext === ".gif") {
+      mimeType = "image/gif";
+    } else if (ext === ".svg") {
+      mimeType = "image/svg+xml";
+    } else if (ext === ".ico") {
+      mimeType = "image/x-icon";
+    }
+    
+    res.setHeader("Content-Type", mimeType);
     res.sendFile(filePath);
   } else {
     // Serve React app for all other routes
