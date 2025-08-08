@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
+import DailyVisitorTrendChart from "./DailyVisitorTrendChart";
+import TopPagesChart from "./TopPagesChart";
 import { Input } from "./ui/Input";
 import { Textarea } from "./ui/textarea";
+import API_CONFIG from "../config/api";
 import {
   LayoutDashboard,
   Users,
@@ -39,8 +43,6 @@ import {
   Shield,
   Crown,
   Globe,
-  PieChart,
-  LineChart,
   Repeat,
 } from "lucide-react";
 
@@ -402,6 +404,7 @@ const AdminDashboard = () => {
     email: "",
     password: "",
   });
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Forgot password state
   const [forgotPasswordForm, setForgotPasswordForm] = useState({
@@ -497,10 +500,16 @@ const AdminDashboard = () => {
       searchTerm === "" ||
       contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       contact.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contact.message.toLowerCase().includes(searchTerm.toLowerCase());
+      contact.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (contact.service &&
+        contact.service.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesFilter =
       filterStatus === "all" ||
+      (filterStatus === "contact" &&
+        (!contact.type || contact.type === "contact")) ||
+      (filterStatus === "apply" && contact.type === "apply") ||
+      (filterStatus === "quote" && contact.type === "quote") ||
       (filterStatus === "new" && isContactNew(contact)) ||
       (filterStatus === "urgent" && isContactUrgent(contact)) ||
       (filterStatus === "unreplied" &&
@@ -511,11 +520,153 @@ const AdminDashboard = () => {
     return matchesSearch && matchesFilter;
   });
 
-  const API_BASE =
-    process.env.NODE_ENV === "production"
-      ? "https://prakash-enterprises.vercel.app/api/admin"
-      : "http://localhost:5000/api/admin";
+  const API_BASE = API_CONFIG.getAdminURL("login").replace("/login", "");
   const notificationRef = useRef(null);
+
+  // Helper function to get token from storage
+  const getAuthToken = () => {
+    const localToken = localStorage.getItem("adminToken");
+    const sessionToken = sessionStorage.getItem("adminToken");
+    return localToken || sessionToken;
+  };
+
+  // Helper function to check if remember me is enabled
+  const isRememberMeEnabled = () => {
+    return localStorage.getItem("rememberMe") === "true";
+  };
+
+  // Check authentication on component mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      // Define API_BASE inside useEffect to avoid dependency issues
+      const apiBase = API_CONFIG.getAdminURL("login").replace("/login", "");
+
+      // Check both localStorage and sessionStorage for token
+      const token = getAuthToken();
+
+      // Check if remember me is enabled and pre-fill email
+      const rememberedEmail = localStorage.getItem("userEmail");
+      if (rememberedEmail && !isAuthenticated) {
+        setLoginForm((prev) => ({ ...prev, email: rememberedEmail }));
+        setRememberMe(true);
+      }
+
+      // If no token, don't proceed with authentication check
+      if (!token) {
+        return;
+      }
+
+      // First check if server is reachable
+      try {
+        const healthResponse = await fetch(
+          `${apiBase.replace("/api/admin", "")}/api/health`
+        );
+      } catch (healthError) {
+        // Server not reachable, continue with token verification
+      }
+
+      // Proceed with token verification
+      try {
+        const response = await fetch(`${apiBase}/verify-token`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setIsAuthenticated(true);
+          setUser(data.user);
+
+          // Handle remember me persistence
+          if (isRememberMeEnabled()) {
+            // Ensure token is in localStorage for persistent login
+            if (!localStorage.getItem("adminToken")) {
+              localStorage.setItem("adminToken", token);
+            }
+          } else {
+            // Session-based login, ensure token is in sessionStorage
+            if (!sessionStorage.getItem("adminToken")) {
+              sessionStorage.setItem("adminToken", token);
+            }
+          }
+        } else {
+          // Clear all storage on authentication failure
+          localStorage.removeItem("adminToken");
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("userEmail");
+          sessionStorage.removeItem("adminToken");
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } catch (error) {
+        // Clear all storage on error
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("rememberMe");
+        localStorage.removeItem("userEmail");
+        sessionStorage.removeItem("adminToken");
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    };
+
+    checkAuth();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Additional effect to handle authentication state changes
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Fetch data when authenticated
+      fetchDashboardData();
+      fetchVisitorStats();
+    }
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Effect to handle window focus and check authentication
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      // Check authentication when window gains focus
+      const token = getAuthToken();
+      if (token && !isAuthenticated) {
+        // Re-run the authentication check
+        const apiBase = API_CONFIG.getAdminURL("login").replace("/login", "");
+
+        fetch(`${apiBase}/verify-token`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              setIsAuthenticated(true);
+              setUser(data.user);
+            } else {
+              // Clear storage on failure
+              localStorage.removeItem("adminToken");
+              localStorage.removeItem("rememberMe");
+              localStorage.removeItem("userEmail");
+              sessionStorage.removeItem("adminToken");
+              setIsAuthenticated(false);
+              setUser(null);
+            }
+          })
+          .catch((error) => {
+            // Clear storage on error
+            localStorage.removeItem("adminToken");
+            localStorage.removeItem("rememberMe");
+            localStorage.removeItem("userEmail");
+            sessionStorage.removeItem("adminToken");
+            setIsAuthenticated(false);
+            setUser(null);
+          });
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Click outside notification handler
   useEffect(() => {
@@ -607,48 +758,70 @@ const AdminDashboard = () => {
 
   const resendOtp = async () => {
     try {
-      const token = localStorage.getItem("adminToken");
       const response = await fetch(`${API_BASE}/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ email: forgotPasswordForm.email }),
       });
 
       const data = await response.json();
       if (data.success) {
-        showToast("OTP resent successfully", "success");
+        // Clear previous OTP inputs
         setOtpInputs(["", "", "", "", "", ""]);
         startOtpCountdown();
+        showToast("OTP resent successfully! Check your email.", "success");
       } else {
-        showToast(data.message, "error");
+        showToast(data.message || "Failed to resend OTP", "error");
       }
     } catch (error) {
       console.error("Error resending OTP:", error);
-      showToast("Failed to resend OTP", "error");
+      showToast("Failed to resend OTP. Please try again.", "error");
     }
   };
 
   const handleOtpPaste = (pastedOtp) => {
+    // Clean the pasted text - remove non-digits and take first 6 digits
     const otpDigits = pastedOtp.replace(/\D/g, "").slice(0, 6).split("");
-    const newOtpInputs = [...otpInputs];
+
+    // Create new OTP inputs array
+    const newOtpInputs = ["", "", "", "", "", ""];
+
+    // Fill in the digits
     otpDigits.forEach((digit, index) => {
       if (index < 6) {
         newOtpInputs[index] = digit;
       }
     });
+
+    // Update state
     setOtpInputs(newOtpInputs);
+
+    // Focus on the next empty input or the last input
+    const nextEmptyIndex = newOtpInputs.findIndex((input) => input === "");
+    const focusIndex = nextEmptyIndex === -1 ? 5 : nextEmptyIndex;
+
+    // Focus the appropriate input field
+    setTimeout(() => {
+      if (otpInputRefs.current[focusIndex]) {
+        otpInputRefs.current[focusIndex].focus();
+      }
+    }, 100);
   };
 
   const handlePasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
+      if (!text || text.trim() === "") {
+        showToast("Clipboard is empty", "error");
+        return;
+      }
+
       handleOtpPaste(text);
-      showToast("OTP pasted from clipboard", "success");
+      showToast("OTP pasted successfully!", "success");
     } catch (error) {
-      showToast("Failed to read clipboard", "error");
+      showToast("Failed to read clipboard. Please paste manually.", "error");
     }
   };
 
@@ -702,13 +875,55 @@ const AdminDashboard = () => {
       });
       const data = await response.json();
       if (data.success) {
+        const previousCount = unreadNotifications;
         setNotifications(data.data);
-        setUnreadNotifications(data.data.filter((n) => !n.read).length);
+        const newCount = data.data.filter((n) => !n.read).length;
+        setUnreadNotifications(newCount);
+
+        // Show notification for new unread notifications
+        if (newCount > previousCount && previousCount > 0) {
+          const newNotifications = newCount - previousCount;
+          showToast(
+            `${newNotifications} new notification${
+              newNotifications > 1 ? "s" : ""
+            } received!`,
+            "info"
+          );
+        }
       }
     } catch (error) {
-      console.error("Error fetching notifications:", error);
+      // Error fetching notifications
     }
-  }, [API_BASE]);
+  }, [API_BASE, unreadNotifications]);
+
+  const fetchNotificationCount = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch(`${API_BASE}/notifications/count`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        const previousCount = unreadNotifications;
+        setUnreadNotifications(data.count);
+
+        // Show notification for new unread notifications
+        if (data.count > previousCount && previousCount > 0) {
+          const newNotifications = data.count - previousCount;
+          showToast(
+            `${newNotifications} new notification${
+              newNotifications > 1 ? "s" : ""
+            } received!`,
+            "info"
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching notification count:", error);
+    }
+  }, [API_BASE, unreadNotifications]);
 
   const markNotificationAsRead = async (notificationId) => {
     try {
@@ -1027,15 +1242,39 @@ const AdminDashboard = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(loginForm),
+        body: JSON.stringify({
+          ...loginForm,
+          rememberMe: rememberMe,
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
-        localStorage.setItem("adminToken", data.token);
+        // Store token based on remember me preference
+        if (rememberMe) {
+          // Store in localStorage for persistent login (30 days)
+          localStorage.setItem("adminToken", data.token);
+          localStorage.setItem("rememberMe", "true");
+          localStorage.setItem("userEmail", loginForm.email);
+          // Also store in sessionStorage for immediate access
+          sessionStorage.setItem("adminToken", data.token);
+        } else {
+          // Store only in sessionStorage for session-based login
+          sessionStorage.setItem("adminToken", data.token);
+          // Clear any existing persistent data
+          localStorage.removeItem("adminToken");
+          localStorage.removeItem("rememberMe");
+          localStorage.removeItem("userEmail");
+        }
+
         setUser(data.user);
         setIsAuthenticated(true);
-        showToast("Login successful", "success");
+        showToast(
+          rememberMe
+            ? "Login successful!"
+            : "Login successful! You'll be logged out when you close the browser.",
+          "success"
+        );
         fetchDashboardData();
         fetchVisitorStats();
       } else {
@@ -1049,11 +1288,33 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("adminToken");
-    setIsAuthenticated(false);
-    setUser(null);
-    showToast("Logged out successfully", "info");
+  const handleLogout = async () => {
+    try {
+      const token = getAuthToken();
+      if (token) {
+        // Call logout endpoint to revoke token on server
+        await fetch(`${API_BASE}/logout`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+      // Continue with logout even if server call fails
+    } finally {
+      // Clear all storage and state
+      localStorage.removeItem("adminToken");
+      localStorage.removeItem("rememberMe");
+      localStorage.removeItem("userEmail");
+      sessionStorage.removeItem("adminToken");
+      setIsAuthenticated(false);
+      setUser(null);
+      setRememberMe(false);
+      showToast("Logged out successfully", "info");
+    }
   };
 
   const handleForgotPassword = async (e) => {
@@ -1076,11 +1337,11 @@ const AdminDashboard = () => {
           startOtpCountdown();
           showToast("OTP sent to your email", "success");
         } else {
-          showToast(data.message, "error");
+          showToast(data.message || "Failed to send OTP", "error");
         }
       } catch (error) {
         console.error("Error sending OTP:", error);
-        showToast("Failed to send OTP", "error");
+        showToast("Failed to send OTP. Please check your connection.", "error");
       }
     } else {
       // Verify OTP and reset password
@@ -1094,6 +1355,11 @@ const AdminDashboard = () => {
         forgotPasswordForm.newPassword !== forgotPasswordForm.confirmPassword
       ) {
         showToast("Passwords do not match", "error");
+        return;
+      }
+
+      if (forgotPasswordForm.newPassword.length < 6) {
+        showToast("Password must be at least 6 characters long", "error");
         return;
       }
 
@@ -1112,7 +1378,10 @@ const AdminDashboard = () => {
 
         const data = await response.json();
         if (data.success) {
-          showToast("Password reset successfully", "success");
+          showToast(
+            "Password reset successfully! You can now login with your new password.",
+            "success"
+          );
           setShowForgotPassword(false);
           setOtpSent(false);
           setOtpInputs(["", "", "", "", "", ""]);
@@ -1123,11 +1392,11 @@ const AdminDashboard = () => {
             confirmPassword: "",
           });
         } else {
-          showToast(data.message, "error");
+          showToast(data.message || "Failed to reset password", "error");
         }
       } catch (error) {
         console.error("Error resetting password:", error);
-        showToast("Failed to reset password", "error");
+        showToast("Failed to reset password. Please try again.", "error");
       }
     }
   };
@@ -1444,8 +1713,16 @@ const AdminDashboard = () => {
       }
       // Fetch notifications periodically
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 30000); // Every 30 seconds
-      return () => clearInterval(interval);
+      const notificationsInterval = setInterval(fetchNotifications, 30000); // Every 30 seconds
+
+      // Fetch notification count more frequently for real-time updates
+      fetchNotificationCount();
+      const countInterval = setInterval(fetchNotificationCount, 10000); // Every 10 seconds
+
+      return () => {
+        clearInterval(notificationsInterval);
+        clearInterval(countInterval);
+      };
     }
   }, [
     currentView,
@@ -1458,7 +1735,8 @@ const AdminDashboard = () => {
     fetchNotificationEmails,
     fetchAdminLogs,
     fetchNotifications,
-  ]);
+    fetchNotificationCount,
+  ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
     return (
@@ -1540,7 +1818,21 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                   <div className="flex-row">
-                    <div></div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="rememberMe"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                      />
+                      <label
+                        htmlFor="rememberMe"
+                        className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                      >
+                        Remember me
+                      </label>
+                    </div>
                     <span
                       className="span"
                       onClick={() => setShowForgotPassword(true)}
@@ -1607,48 +1899,76 @@ const AdminDashboard = () => {
                                 handleOtpInput(index, e.target.value)
                               }
                               onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                              maxLength={1}
-                              placeholder="○"
-                            />
-                          ))}
-                        </div>
-                        <div className="otp-paste-section">
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            Paste OTP from clipboard:
-                          </p>
-                          <div className="flex space-x-2">
-                            <button
-                              type="button"
-                              onClick={handlePasteFromClipboard}
-                              className="px-3 py-1 bg-blue-500 text-white rounded text-sm"
-                            >
-                              Paste from Clipboard
-                            </button>
-                            <input
-                              type="text"
-                              placeholder="Or paste manually here"
-                              className="flex-1 px-2 py-1 border rounded text-sm"
                               onPaste={(e) => {
                                 e.preventDefault();
                                 const pastedText =
                                   e.clipboardData.getData("text");
                                 handleOtpPaste(pastedText);
                               }}
+                              maxLength={1}
+                              placeholder="○"
                             />
+                          ))}
+                        </div>
+                        <div className="otp-paste-section">
+                          <div className="flex items-center justify-center mt-4">
+                            <button
+                              type="button"
+                              onClick={handlePasteFromClipboard}
+                              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors duration-200 shadow-sm"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                                />
+                              </svg>
+                              <span>Paste OTP from Clipboard</span>
+                            </button>
                           </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                            Or paste directly into any OTP box
+                          </p>
                         </div>
                         {otpCountdown > 0 ? (
-                          <p className="text-sm text-gray-500">
-                            Resend OTP in {otpCountdown}s
-                          </p>
+                          <div className="flex items-center justify-center mt-3">
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Resend OTP in{" "}
+                              <span className="font-semibold text-blue-500">
+                                {otpCountdown}s
+                              </span>
+                            </p>
+                          </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={resendOtp}
-                            className="text-blue-500 text-sm hover:underline"
-                          >
-                            Resend OTP
-                          </button>
+                          <div className="flex items-center justify-center mt-3">
+                            <button
+                              type="button"
+                              onClick={resendOtp}
+                              className="flex items-center space-x-1 text-blue-500 hover:text-blue-600 text-sm font-medium transition-colors duration-200"
+                            >
+                              <svg
+                                className="w-4 h-4"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                />
+                              </svg>
+                              <span>Resend OTP</span>
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="flex-column">
@@ -1768,44 +2088,75 @@ const AdminDashboard = () => {
               Prakash Enterprises Admin
             </h1>
             <div className="flex items-center space-x-4">
-              {/* Notification Icon */}
+              {/* Enhanced Notification Icon */}
               <div className="relative" ref={notificationRef}>
                 <Button
                   onClick={() => setShowNotifications(!showNotifications)}
                   variant="outline"
                   size="sm"
-                  className="relative"
+                  className={`relative transition-all duration-300 hover:scale-105 ${
+                    unreadNotifications > 0
+                      ? "border-red-300 bg-red-50 dark:bg-red-900/20"
+                      : ""
+                  }`}
                 >
-                  <Bell className="w-4 h-4 mr-2" />
+                  <Bell
+                    className={`w-4 h-4 mr-2 transition-all duration-300 ${
+                      unreadNotifications > 0
+                        ? "text-red-500 animate-pulse"
+                        : "text-gray-600 dark:text-gray-300"
+                    }`}
+                  />
                   Notifications
                   {unreadNotifications > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {unreadNotifications}
-                    </span>
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-2 -right-2 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold shadow-lg"
+                    >
+                      {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                    </motion.span>
                   )}
                 </Button>
 
-                {/* Notifications Dropdown */}
+                {/* Enhanced Notifications Dropdown */}
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-600">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        Notifications
-                      </h3>
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-xl z-50 max-h-96 overflow-y-auto"
+                  >
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-600 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Notifications
+                        </h3>
+                        {unreadNotifications > 0 && (
+                          <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold">
+                            {unreadNotifications} new
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="p-2">
                       {notifications.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                          No notifications
-                        </p>
+                        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                          <Bell className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                          <p>No notifications yet</p>
+                          <p className="text-sm">You're all caught up!</p>
+                        </div>
                       ) : (
-                        notifications.map((notification) => (
-                          <div
+                        notifications.map((notification, index) => (
+                          <motion.div
                             key={notification._id}
-                            className={`p-3 rounded-lg mb-2 cursor-pointer transition-colors ${
-                              notification.read
-                                ? "bg-gray-50 dark:bg-gray-700"
-                                : "bg-blue-50 dark:bg-blue-900/20"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className={`p-3 rounded-lg mb-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
+                              !notification.read
+                                ? "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-l-4 border-blue-500"
+                                : "bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600"
                             }`}
                             onClick={() =>
                               markNotificationAsRead(notification._id)
@@ -1813,27 +2164,51 @@ const AdminDashboard = () => {
                           >
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                  {notification.title}
-                                </p>
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {notification.title}
+                                  </p>
+                                  {!notification.read && (
+                                    <motion.div
+                                      animate={{ scale: [1, 1.2, 1] }}
+                                      transition={{
+                                        duration: 1,
+                                        repeat: Infinity,
+                                      }}
+                                      className="w-2 h-2 bg-blue-500 rounded-full"
+                                    />
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                                   {notification.message}
                                 </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
                                   {new Date(
                                     notification.createdAt
                                   ).toLocaleString()}
                                 </p>
                               </div>
-                              {!notification.read && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
-                              )}
                             </div>
-                          </div>
+                          </motion.div>
                         ))
                       )}
                     </div>
-                  </div>
+                    {notifications.length > 0 && (
+                      <div className="p-3 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800">
+                        <button
+                          onClick={() => {
+                            // Mark all as read functionality
+                            notifications.forEach((n) => {
+                              if (!n.read) markNotificationAsRead(n._id);
+                            });
+                          }}
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                        >
+                          Mark all as read
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
                 )}
               </div>
 
@@ -2135,40 +2510,42 @@ const AdminDashboard = () => {
                   </Card>
                 </div>
 
-                {/* Charts Placeholder */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
-                        Daily Visitor Trend
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-                        <div className="text-center">
-                          <LineChart className="w-12 h-12 mx-auto mb-2" />
-                          <p>Visitor trend chart will be displayed here</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                {/* Charts Section */}
+                {visitorStats && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Daily Visitor Trend Chart */}
+                    <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
+                      <CardHeader>
+                        <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
+                          Daily Visitor Trend
+                        </CardTitle>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Weekly visitor trends and patterns
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        <DailyVisitorTrendChart
+                          dailyData={visitorStats.dailyData}
+                        />
+                      </CardContent>
+                    </Card>
 
-                  <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
-                    <CardHeader>
-                      <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
-                        Top Pages
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
-                        <div className="text-center">
-                          <PieChart className="w-12 h-12 mx-auto mb-2" />
-                          <p>Page analytics chart will be displayed here</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                    {/* Top Pages Chart */}
+                    <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
+                      <CardHeader>
+                        <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
+                          Top Pages
+                        </CardTitle>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Most visited pages and traffic distribution
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        <TopPagesChart pageStats={visitorStats.pageStats} />
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2254,7 +2631,7 @@ const AdminDashboard = () => {
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-blue-100 text-sm">
-                            Total Contacts
+                            Total Submissions
                           </p>
                           <p className="text-2xl font-bold">
                             {contacts.length}
@@ -2266,46 +2643,38 @@ const AdminDashboard = () => {
                     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
                       <div className="flex items-center justify-between">
                         <div>
+                          <p className="text-blue-100 text-sm">
+                            Loan Applications
+                          </p>
+                          <p className="text-2xl font-bold">
+                            {contacts.filter((c) => c.type === "apply").length}
+                          </p>
+                        </div>
+                        <TrendingUp className="w-8 h-8 text-green-200" />
+                      </div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-blue-100 text-sm">
+                            Quote Requests
+                          </p>
+                          <p className="text-2xl font-bold">
+                            {contacts.filter((c) => c.type === "quote").length}
+                          </p>
+                        </div>
+                        <FileText className="w-8 h-8 text-yellow-200" />
+                      </div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
                           <p className="text-blue-100 text-sm">New (24h)</p>
                           <p className="text-2xl font-bold">
                             {contacts.filter((c) => isContactNew(c)).length}
                           </p>
                         </div>
-                        <Bell className="w-8 h-8 text-yellow-200" />
-                      </div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-100 text-sm">Replied</p>
-                          <p className="text-2xl font-bold">
-                            {
-                              contacts.filter((c) => c.status === "replied")
-                                .length
-                            }
-                          </p>
-                        </div>
-                        <Reply className="w-8 h-8 text-green-200" />
-                      </div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-blue-100 text-sm">Today</p>
-                          <p className="text-2xl font-bold">
-                            {
-                              contacts.filter((c) => {
-                                const today = new Date();
-                                const contactDate = new Date(c.createdAt);
-                                return (
-                                  contactDate.toDateString() ===
-                                  today.toDateString()
-                                );
-                              }).length
-                            }
-                          </p>
-                        </div>
-                        <Calendar className="w-8 h-8 text-purple-200" />
+                        <Bell className="w-8 h-8 text-purple-200" />
                       </div>
                     </div>
                   </div>
@@ -2340,7 +2709,10 @@ const AdminDashboard = () => {
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
                       >
-                        <option value="all">All Contacts</option>
+                        <option value="all">All Submissions</option>
+                        <option value="contact">Contact Forms</option>
+                        <option value="apply">Loan Applications</option>
+                        <option value="quote">Quote Requests</option>
                         <option value="new">New (24h)</option>
                         <option value="urgent">Urgent</option>
                         <option value="unreplied">Unreplied</option>
@@ -2707,6 +3079,32 @@ const AdminDashboard = () => {
                                     </div>
                                   </div>
                                 )}
+                                {contact.service && (
+                                  <div className="flex items-center space-x-3">
+                                    <FileText className="w-5 h-5 text-gray-400" />
+                                    <div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Service
+                                      </p>
+                                      <p className="text-gray-900 dark:text-white font-medium">
+                                        {contact.service}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                                {contact.amount && (
+                                  <div className="flex items-center space-x-3">
+                                    <TrendingUp className="w-5 h-5 text-gray-400" />
+                                    <div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Amount
+                                      </p>
+                                      <p className="text-gray-900 dark:text-white font-medium">
+                                        ₹{contact.amount}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                                 <div className="flex items-center space-x-3">
                                   <Clock className="w-5 h-5 text-gray-400" />
                                   <div>
@@ -2724,10 +3122,41 @@ const AdminDashboard = () => {
                                     </p>
                                   </div>
                                 </div>
+                                {contact.type && contact.type !== "contact" && (
+                                  <div className="flex items-center space-x-3">
+                                    <div
+                                      className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                                        contact.type === "apply"
+                                          ? "bg-blue-100 text-blue-600"
+                                          : "bg-green-100 text-green-600"
+                                      }`}
+                                    >
+                                      {contact.type === "apply" ? "A" : "Q"}
+                                    </div>
+                                    <div>
+                                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Type
+                                      </p>
+                                      <p
+                                        className={`font-medium ${
+                                          contact.type === "apply"
+                                            ? "text-blue-600 dark:text-blue-400"
+                                            : "text-green-600 dark:text-green-400"
+                                        }`}
+                                      >
+                                        {contact.type === "apply"
+                                          ? "Loan Application"
+                                          : "Quote Request"}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
                                 <h4 className="font-medium text-gray-900 dark:text-white mb-2">
-                                  Message
+                                  {contact.type && contact.type !== "contact"
+                                    ? "Details"
+                                    : "Message"}
                                 </h4>
                                 <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
                                   {contact.message}
@@ -3637,48 +4066,40 @@ const AdminDashboard = () => {
                       </Card>
                     </div>
 
-                    {/* Page Statistics */}
-                    <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
-                      <CardHeader>
-                        <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
-                          Most Visited Pages
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {visitorStats.pageStats.map((page, index) => (
-                            <div
-                              key={page.page}
-                              className="flex items-center justify-between"
-                            >
-                              <div className="flex items-center">
-                                <div
-                                  className={`w-3 h-3 rounded-full mr-3 ${
-                                    index === 0
-                                      ? "bg-blue-500"
-                                      : index === 1
-                                      ? "bg-green-500"
-                                      : index === 2
-                                      ? "bg-purple-500"
-                                      : index === 3
-                                      ? "bg-orange-500"
-                                      : "bg-gray-500"
-                                  }`}
-                                ></div>
-                                <span className="text-gray-700 dark:text-gray-300 capitalize">
-                                  {page.page === "home"
-                                    ? "Home Page"
-                                    : page.page}
-                                </span>
-                              </div>
-                              <span className="font-semibold text-gray-900 dark:text-white">
-                                {page.count}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Daily Visitor Trend Chart */}
+                      <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
+                            Daily Visitor Trend
+                          </CardTitle>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Weekly visitor trends and patterns
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <DailyVisitorTrendChart
+                            dailyData={visitorStats.dailyData}
+                          />
+                        </CardContent>
+                      </Card>
+
+                      {/* Top Pages Chart */}
+                      <Card className="bg-white/90 dark:bg-gray-900/90 border-gray-200 dark:border-gray-600">
+                        <CardHeader>
+                          <CardTitle className="text-gray-900 dark:text-white transition-colors duration-300">
+                            Top Pages
+                          </CardTitle>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Most visited pages and traffic distribution
+                          </p>
+                        </CardHeader>
+                        <CardContent>
+                          <TopPagesChart pageStats={visitorStats.pageStats} />
+                        </CardContent>
+                      </Card>
+                    </div>
 
                     {/* Visitor Type */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

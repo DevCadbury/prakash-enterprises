@@ -21,10 +21,10 @@ import {
   Zap,
   Shield,
   Sparkles,
-  Award,
   X,
   FileText,
 } from "lucide-react";
+import API_CONFIG from "../config/api";
 
 const LoanServices = () => {
   // State for quote modal
@@ -61,9 +61,7 @@ const LoanServices = () => {
 
     try {
       const response = await fetch(
-        process.env.NODE_ENV === "production"
-          ? "https://prakash-enterprises.vercel.app/api/quote"
-          : "http://localhost:5000/api/quote",
+        API_CONFIG.getURL(API_CONFIG.endpoints.quote),
         {
           method: "POST",
           headers: {
@@ -103,7 +101,6 @@ const LoanServices = () => {
         });
       }
     } catch (error) {
-      console.error("Error submitting quote:", error);
       setDialog({
         isOpen: true,
         title: "Submission Failed",
@@ -140,12 +137,7 @@ const LoanServices = () => {
         iconColor: "text-blue-600",
         gradient: "from-blue-500 to-cyan-500",
         lightningColor: "from-blue-400 to-cyan-400",
-        benefits: [
-          "Up to 90% funding",
-          "EMI starting ₹8,000",
-          "Processing in 48 hours",
-        ],
-        stats: { rate: "8.5%", amount: "₹50L", time: "48 hours" },
+        stats: { rate: "8.3%", amount: "₹50L" },
       },
       {
         icon: Building,
@@ -163,12 +155,7 @@ const LoanServices = () => {
         iconColor: "text-purple-600",
         gradient: "from-purple-500 to-pink-500",
         lightningColor: "from-purple-400 to-pink-400",
-        benefits: [
-          "Up to 75% LTV",
-          "EMI starting ₹12,000",
-          "Processing in 72 hours",
-        ],
-        stats: { rate: "9.2%", amount: "₹1Cr", time: "72 hours" },
+        stats: { rate: "9.2%", amount: "₹1Cr" },
       },
       {
         icon: GraduationCap,
@@ -186,12 +173,7 @@ const LoanServices = () => {
         iconColor: "text-green-600",
         gradient: "from-green-500 to-emerald-500",
         lightningColor: "from-green-400 to-emerald-400",
-        benefits: [
-          "Up to ₹25L funding",
-          "EMI starting ₹5,000",
-          "Processing in 24 hours",
-        ],
-        stats: { rate: "7.8%", amount: "₹25L", time: "24 hours" },
+        stats: { rate: "7.8%", amount: "₹25L" },
       },
       {
         icon: Car,
@@ -209,12 +191,7 @@ const LoanServices = () => {
         iconColor: "text-orange-600",
         gradient: "from-orange-500 to-red-500",
         lightningColor: "from-orange-400 to-red-400",
-        benefits: [
-          "Up to 100% funding",
-          "EMI starting ₹6,000",
-          "Processing in 12 hours",
-        ],
-        stats: { rate: "8.9%", amount: "₹15L", time: "12 hours" },
+        stats: { rate: "8.9%", amount: "₹15L" },
       },
     ],
     []
@@ -634,7 +611,7 @@ const LoanServices = () => {
 
                   <CardContent className="space-y-1 sm:space-y-2 lg:space-y-4 xl:space-y-6 px-2 sm:px-4">
                     {/* Stats Section */}
-                    <div className="grid grid-cols-3 gap-1 sm:gap-2 lg:gap-4">
+                    <div className="grid grid-cols-2 gap-1 sm:gap-2 lg:gap-4">
                       <div className="text-center">
                         <div className="text-xs sm:text-lg lg:text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {loan.stats.rate}
@@ -649,14 +626,6 @@ const LoanServices = () => {
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           Max Amount
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs sm:text-lg lg:text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {loan.stats.time}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Processing
                         </div>
                       </div>
                     </div>
@@ -678,27 +647,6 @@ const LoanServices = () => {
                           </span>
                         </motion.div>
                       ))}
-                    </div>
-
-                    {/* Benefits Section */}
-                    <div className="bg-gradient-to-r from-gray-100/50 to-blue-100/30 dark:from-gray-700/50 dark:to-blue-900/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-1 sm:p-2 lg:p-3 xl:p-4 border border-gray-200/30 dark:border-gray-600/30 transition-colors duration-300">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-0.5 sm:mb-1 lg:mb-2 xl:mb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm lg:text-base transition-colors duration-300">
-                        <Award className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500 dark:text-blue-400" />
-                        Benefits
-                      </h4>
-                      <div className="space-y-0.5 sm:space-y-1 lg:space-y-2">
-                        {loan.benefits.map((benefit, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-1 sm:gap-2"
-                          >
-                            <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 lg:w-2 lg:h-2 bg-blue-500 dark:bg-blue-400 rounded-full"></div>
-                            <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 transition-colors duration-300">
-                              {benefit}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
                     </div>
 
                     {/* CTA Button */}

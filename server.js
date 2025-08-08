@@ -29,6 +29,7 @@ const Promotion = require("./models/Promotion");
 const Visitor = require("./models/Visitor");
 const NotificationEmail = require("./models/NotificationEmail");
 const AdminLog = require("./models/AdminLog");
+const TokenBlacklist = require("./models/TokenBlacklist");
 
 // Import middleware
 const { auth, requireRole } = require("./middleware/auth");
@@ -41,21 +42,66 @@ app.set("trust proxy", 1);
 
 // Security middleware
 app.use(helmet());
-app.use(
-  cors({
-    origin:
-      process.env.NODE_ENV === "production"
-        ? ["https://prakash-enterprises.vercel.app", "https://*.vercel.app"]
-        : [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:3001",
-          ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // For development, always allow localhost regardless of NODE_ENV
+    if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
+      return callback(null, true);
+    }
+
+    // For production, only allow specific domains
+    if (process.env.NODE_ENV === "production") {
+      const productionOrigins = [
+        "https://prakash-enterprises.vercel.app",
+        "https://*.vercel.app",
+      ];
+      const isAllowed = productionOrigins.some((allowedOrigin) => {
+        if (allowedOrigin.includes("*")) {
+          return origin.includes(allowedOrigin.replace("*", ""));
+        }
+        return origin === allowedOrigin;
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        console.log(`CORS blocked production origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    } else {
+      // Development mode - allow all localhost origins
+      callback(null, true);
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+  ],
+  exposedHeaders: ["Content-Length", "X-Requested-With"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+
+// Add CORS preflight handler
+app.options("*", cors(corsOptions));
+
+// Debug middleware for CORS issues
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.get("Origin")}`);
+  next();
+});
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -87,6 +133,32 @@ if (process.env.NODE_ENV === "production") {
     console.warn("⚠️ Production build not found. Run 'npm run build' first.");
   }
 }
+
+// Health check endpoint
+app.get("/api/health", (req, res) => {
+  res.json({
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+  });
+});
+
+// Clean up expired tokens periodically
+const cleanupExpiredTokens = async () => {
+  try {
+    const result = await TokenBlacklist.deleteMany({
+      expiresAt: { $lt: new Date() },
+    });
+    if (result.deletedCount > 0) {
+      console.log(`🧹 Cleaned up ${result.deletedCount} expired tokens`);
+    }
+  } catch (error) {
+    console.error("Error cleaning up expired tokens:", error);
+  }
+};
+
+// Run cleanup every hour
+setInterval(cleanupExpiredTokens, 60 * 60 * 1000);
 
 // Initialize superadmin and dev account
 const initializeAccounts = async () => {
@@ -331,10 +403,76 @@ app.post("/api/contact", async (req, res) => {
 });
 
 // Admin Authentication Routes
+app.post("/api/admin/verify-token", auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name || "Admin",
+        role: req.user.role,
+        isDev: req.user.isDev,
+      },
+    });
+  } catch (error) {
+    console.error("Token verification error:", error);
+    res.status(401).json({
+      success: false,
+      message: "Invalid token",
+    });
+  }
+});
+
+app.post("/api/admin/logout", auth, async (req, res) => {
+  try {
+    const token = req.header("Authorization")?.replace("Bearer ", "");
+
+    if (token) {
+      // Decode token to get expiration
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "your-secret-key"
+      );
+
+      // Add token to blacklist
+      await TokenBlacklist.create({
+        token,
+        userId: req.user._id,
+        expiresAt: new Date(decoded.exp * 1000), // Convert to Date
+      });
+    }
+
+    // Log the logout action
+    await logAdminAction(
+      "logout",
+      req.user._id,
+      `Admin logout: ${req.user.email}`,
+      null,
+      null,
+      {
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent"),
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Logged out successfully",
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Logout failed",
+    });
+  }
+});
+
 app.post("/api/admin/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
-    console.log("Login attempt for:", email);
+    const { email, password, rememberMe } = req.body;
+    console.log("Login attempt for:", email, "Remember me:", rememberMe);
 
     const user = await User.findOne({ email });
     if (!user) {
@@ -395,15 +533,19 @@ app.post("/api/admin/login", async (req, res) => {
       // Don't fail the login if logging fails
     }
 
+    // Set token expiration based on remember me preference
+    const tokenExpiration = rememberMe ? "30d" : "24h";
+
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "24h" }
+      { expiresIn: tokenExpiration }
     );
 
     res.json({
       success: true,
       token,
+      rememberMe: rememberMe,
       user: {
         id: user._id,
         email: user.email,
@@ -506,8 +648,13 @@ app.post("/api/admin/reset-password", async (req, res) => {
       });
     }
 
+    // Hash the new password
+    const bcrypt = require("bcryptjs");
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
     // Update password
-    user.password = newPassword;
+    user.password = hashedPassword;
     user.resetPasswordOTP = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
@@ -1093,6 +1240,23 @@ app.get("/api/admin/notifications", auth, async (req, res) => {
   }
 });
 
+// Get unread notification count
+app.get("/api/admin/notifications/count", auth, async (req, res) => {
+  try {
+    const count = await Notification.countDocuments({ read: false });
+    res.json({
+      success: true,
+      count,
+    });
+  } catch (error) {
+    console.error("Get notification count error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch notification count",
+    });
+  }
+});
+
 // Mark notification as read
 app.put("/api/admin/notifications/:id/read", auth, async (req, res) => {
   try {
@@ -1526,6 +1690,30 @@ app.post("/api/quote", async (req, res) => {
       type, // "apply" or "quote"
     } = req.body;
 
+    // Validate required fields
+    if (!name || !email || !phone || !service) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email, phone, and service are required",
+      });
+    }
+
+    // Save to Contact collection for admin dashboard
+    const contact = await Contact.create({
+      name,
+      email,
+      phone,
+      message: `Service: ${service}${amount ? ` | Amount: ₹${amount}` : ""}${
+        message ? ` | Additional Info: ${message}` : ""
+      }`,
+      status: "new",
+      type: type, // "apply" or "quote"
+      service: service,
+      amount: amount,
+    });
+
+    console.log("✅ Quote/Application saved to database:", contact._id);
+
     // Create notification for admin
     const notification = new Notification({
       title: `${type === "apply" ? "New Application" : "New Quote Request"}`,
@@ -1535,9 +1723,12 @@ app.post("/api/quote", async (req, res) => {
         message ? `Message: ${message}` : ""
       }`,
       type: "contact",
+      relatedId: contact._id,
+      relatedModel: "Contact",
     });
 
     await notification.save();
+    console.log("✅ Notification created for quote/application");
 
     // Send email notification to admin
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -1571,11 +1762,35 @@ app.post("/api/quote", async (req, res) => {
       }
     }
 
+    // Send confirmation email to customer
+    try {
+      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+        console.log(`📧 Sending confirmation email to customer: ${email}`);
+        await sendContactConfirmation({
+          name,
+          email,
+          phone,
+          message: `Service: ${service}${
+            amount ? ` | Amount: ₹${amount}` : ""
+          }${message ? ` | Additional Info: ${message}` : ""}`,
+        });
+        console.log("✅ Quote/Application confirmation sent to customer");
+      } else {
+        console.log("ℹ️ Email not configured - customer confirmation not sent");
+      }
+    } catch (confirmationError) {
+      console.log(
+        "❌ Customer confirmation email failed (continuing without email):",
+        confirmationError.message
+      );
+      console.error("Confirmation error details:", confirmationError);
+    }
+
     res.json({
       success: true,
       message: `${
         type === "apply" ? "Application" : "Quote request"
-      } submitted successfully`,
+      } submitted successfully! We will get back to you soon.`,
     });
   } catch (error) {
     console.error("Error submitting quote/application:", error);

@@ -19,10 +19,10 @@ import {
   ArrowRight,
   CheckCircle,
   Zap,
-  Award,
   X,
   FileText,
 } from "lucide-react";
+import API_CONFIG from "../config/api";
 
 const InsuranceServices = () => {
   // State for quote modal
@@ -59,9 +59,7 @@ const InsuranceServices = () => {
 
     try {
       const response = await fetch(
-        process.env.NODE_ENV === "production"
-          ? "https://prakash-enterprises.vercel.app/api/quote"
-          : "http://localhost:5000/api/quote",
+        API_CONFIG.getURL(API_CONFIG.endpoints.quote),
         {
           method: "POST",
           headers: {
@@ -101,7 +99,6 @@ const InsuranceServices = () => {
         });
       }
     } catch (error) {
-      console.error("Error submitting quote:", error);
       setDialog({
         isOpen: true,
         title: "Submission Failed",
@@ -136,8 +133,7 @@ const InsuranceServices = () => {
       iconColor: "text-red-600",
       gradient: "from-red-500 to-pink-500",
       lightningColor: "from-red-400 to-pink-400",
-      benefits: ["Starting ₹500/year", "Instant policy", "24/7 claims support"],
-      stats: { premium: "₹500", coverage: "₹1L", time: "Instant" },
+      stats: { premium: "₹500", coverage: "₹1L" },
     },
     {
       icon: Car,
@@ -155,12 +151,7 @@ const InsuranceServices = () => {
       iconColor: "text-blue-600",
       gradient: "from-blue-500 to-cyan-500",
       lightningColor: "from-blue-400 to-cyan-400",
-      benefits: [
-        "Starting ₹2,000/year",
-        "Zero depreciation",
-        "24/7 assistance",
-      ],
-      stats: { premium: "₹2,000", coverage: "₹5L", time: "24 hours" },
+      stats: { premium: "₹2,000", coverage: "₹5L" },
     },
     {
       icon: Heart,
@@ -178,12 +169,7 @@ const InsuranceServices = () => {
       iconColor: "text-green-600",
       gradient: "from-green-500 to-emerald-500",
       lightningColor: "from-green-400 to-emerald-400",
-      benefits: [
-        "Starting ₹3,000/year",
-        "Cashless treatment",
-        "Family coverage",
-      ],
-      stats: { premium: "₹3,000", coverage: "₹10L", time: "48 hours" },
+      stats: { premium: "₹3,000", coverage: "₹10L" },
     },
     {
       icon: Shield,
@@ -201,8 +187,7 @@ const InsuranceServices = () => {
       iconColor: "text-purple-600",
       gradient: "from-purple-500 to-violet-500",
       lightningColor: "from-purple-400 to-violet-400",
-      benefits: ["Starting ₹5,000/year", "Tax benefits", "Flexible terms"],
-      stats: { premium: "₹5,000", coverage: "₹50L", time: "72 hours" },
+      stats: { premium: "₹5,000", coverage: "₹50L" },
     },
   ];
 
@@ -426,7 +411,7 @@ const InsuranceServices = () => {
 
                   <CardContent className="space-y-1 sm:space-y-2 lg:space-y-4 xl:space-y-6 px-2 sm:px-4">
                     {/* Stats Section */}
-                    <div className="grid grid-cols-3 gap-1 sm:gap-2 lg:gap-4">
+                    <div className="grid grid-cols-2 gap-1 sm:gap-2 lg:gap-4">
                       <div className="text-center">
                         <div className="text-xs sm:text-lg lg:text-2xl font-bold text-blue-600 dark:text-blue-400">
                           {insurance.stats.premium}
@@ -441,14 +426,6 @@ const InsuranceServices = () => {
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">
                           Coverage
-                        </div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-xs sm:text-lg lg:text-2xl font-bold text-purple-600 dark:text-purple-400">
-                          {insurance.stats.time}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Processing
                         </div>
                       </div>
                     </div>
@@ -473,27 +450,6 @@ const InsuranceServices = () => {
                           </span>
                         </motion.div>
                       ))}
-                    </div>
-
-                    {/* Benefits Section */}
-                    <div className="bg-gradient-to-r from-gray-100/50 to-purple-100/30 dark:from-gray-700/50 dark:to-purple-900/30 rounded-lg sm:rounded-xl lg:rounded-2xl p-1 sm:p-2 lg:p-3 xl:p-4 border border-gray-200/30 dark:border-gray-600/30 transition-colors duration-300">
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-0.5 sm:mb-1 lg:mb-2 xl:mb-3 flex items-center gap-1 sm:gap-2 text-xs sm:text-sm lg:text-base transition-colors duration-300">
-                        <Award className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500 dark:text-purple-400" />
-                        Benefits
-                      </h4>
-                      <div className="space-y-0.5 sm:space-y-1 lg:space-y-2">
-                        {insurance.benefits.map((benefit, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-1 sm:gap-2"
-                          >
-                            <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 lg:w-2 lg:h-2 bg-purple-500 dark:bg-purple-400 rounded-full"></div>
-                            <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 transition-colors duration-300">
-                              {benefit}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
                     </div>
 
                     {/* CTA Button */}

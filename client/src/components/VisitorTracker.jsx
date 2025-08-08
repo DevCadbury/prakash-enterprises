@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import API_CONFIG from "../config/api";
 
 const VisitorTracker = () => {
   useEffect(() => {
@@ -58,10 +59,8 @@ const VisitorTracker = () => {
         localStorage.setItem("sessionId", sessionId);
 
         // Track visitor
-        await fetch(
-          process.env.NODE_ENV === "production"
-            ? "https://prakash-enterprises.vercel.app/api/visitor"
-            : "http://localhost:5000/api/visitor",
+        const response = await fetch(
+          API_CONFIG.getURL(API_CONFIG.endpoints.visitor),
           {
             method: "POST",
             headers: {
@@ -77,8 +76,24 @@ const VisitorTracker = () => {
             }),
           }
         );
+
+        if (!response.ok) {
+          console.warn(
+            `Visitor tracking failed: ${response.status} ${response.statusText}`
+          );
+        }
       } catch (error) {
-        console.error("Error tracking visitor:", error);
+        // Only log as error if it's not a network/CORS issue
+        if (
+          error.name === "TypeError" &&
+          error.message.includes("Failed to fetch")
+        ) {
+          console.warn(
+            "Visitor tracking unavailable - server may not be running"
+          );
+        } else {
+          console.error("Error tracking visitor:", error);
+        }
       }
     };
 

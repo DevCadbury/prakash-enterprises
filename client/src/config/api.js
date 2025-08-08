@@ -1,25 +1,87 @@
-// API Configuration for different environments
+// API Configuration
 const API_CONFIG = {
-  development: {
-    baseURL: "http://localhost:5000",
-    adminURL: "http://localhost:5000/api/admin",
-    visitorURL: "http://localhost:5000/api/visitor",
-    contactURL: "http://localhost:5000/api/contact",
-    quoteURL: "http://localhost:5000/api/quote",
+  // Base URLs
+  PRODUCTION_URL: "https://prakash-enterprises.vercel.app",
+  DEVELOPMENT_URL: "http://localhost:5000",
+
+  // Get the appropriate base URL based on environment
+  getBaseURL: () => {
+    // For client-side code, we need to handle both development and production
+    if (typeof window !== "undefined") {
+      // Client-side code
+      if (process.env.NODE_ENV === "production") {
+        // In production (Vercel), use the same domain for API calls
+        // This ensures API calls go to the same Vercel deployment
+        // If the domain is different from our expected production URL, use the current domain
+        const currentOrigin = window.location.origin;
+        if (currentOrigin !== API_CONFIG.PRODUCTION_URL) {
+          // Use the current domain (might be a different Vercel deployment)
+          return currentOrigin;
+        }
+        return API_CONFIG.PRODUCTION_URL;
+      }
+      return API_CONFIG.DEVELOPMENT_URL;
+    } else {
+      // Server-side code
+      if (process.env.NODE_ENV === "production") {
+        return API_CONFIG.PRODUCTION_URL;
+      }
+      return API_CONFIG.DEVELOPMENT_URL;
+    }
   },
-  production: {
-    baseURL: "https://prakash-enterprises.vercel.app",
-    adminURL: "https://prakash-enterprises.vercel.app/api/admin",
-    visitorURL: "https://prakash-enterprises.vercel.app/api/visitor",
-    contactURL: "https://prakash-enterprises.vercel.app/api/contact",
-    quoteURL: "https://prakash-enterprises.vercel.app/api/quote",
+
+  // Alternative method for explicit production URL
+  getProductionURL: () => {
+    return API_CONFIG.PRODUCTION_URL;
+  },
+
+  // API Endpoints
+  endpoints: {
+    // Public endpoints
+    health: "/api/health",
+    contact: "/api/contact",
+    quote: "/api/quote",
+    visitor: "/api/visitor",
+
+    // Admin endpoints
+    admin: {
+      login: "/api/admin/login",
+      logout: "/api/admin/logout",
+      verifyToken: "/api/admin/verify-token",
+      forgotPassword: "/api/admin/forgot-password",
+      resetPassword: "/api/admin/reset-password",
+      dashboard: "/api/admin/dashboard",
+      contacts: "/api/admin/contacts",
+      users: "/api/admin/users",
+      visitorStats: "/api/admin/visitor-stats",
+      notifications: "/api/admin/notifications",
+      notificationCount: "/api/admin/notifications/count",
+      reply: "/api/admin/reply",
+      createUser: "/api/admin/create-user",
+      deleteUser: "/api/admin/delete-user",
+      editContact: "/api/admin/edit-contact",
+      sendEmail: "/api/admin/send-email",
+      sendPromotion: "/api/admin/send-promotion",
+      testPromotion: "/api/admin/test-promotion",
+      promotionHistory: "/api/admin/promotion-history",
+      notificationEmails: "/api/admin/notification-emails",
+      updateNotificationEmails: "/api/admin/update-notification-emails",
+      adminLogs: "/api/admin/logs",
+      markNotificationRead: "/api/admin/mark-notification-read",
+    },
+  },
+
+  // Helper function to get full URL
+  getURL: (endpoint) => {
+    return `${API_CONFIG.getBaseURL()}${endpoint}`;
+  },
+
+  // Helper function to get admin URL
+  getAdminURL: (endpoint) => {
+    return `${API_CONFIG.getBaseURL()}${
+      API_CONFIG.endpoints.admin[endpoint] || endpoint
+    }`;
   },
 };
 
-// Get current environment
-const isProduction = process.env.NODE_ENV === "production";
-const currentConfig = isProduction
-  ? API_CONFIG.production
-  : API_CONFIG.development;
-
-export default currentConfig;
+export default API_CONFIG;

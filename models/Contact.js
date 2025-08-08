@@ -58,6 +58,19 @@ const contactSchema = new mongoose.Schema(
       type: String,
       default: "contact_form",
     },
+    type: {
+      type: String,
+      enum: ["contact", "apply", "quote"],
+      default: "contact",
+    },
+    service: {
+      type: String,
+      trim: true,
+    },
+    amount: {
+      type: String,
+      trim: true,
+    },
     ipAddress: String,
     userAgent: String,
   },

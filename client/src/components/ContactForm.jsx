@@ -18,6 +18,7 @@ import {
   Calendar,
   FileText,
 } from "lucide-react";
+import API_CONFIG from "../config/api";
 
 const ContactForm = () => {
   const [formData, setFormData] = useState({
@@ -198,9 +199,7 @@ const ContactForm = () => {
 
       try {
         const response = await fetch(
-          process.env.NODE_ENV === "production"
-            ? "https://prakash-enterprises.vercel.app/api/contact"
-            : "http://localhost:5000/api/contact",
+          API_CONFIG.getURL(API_CONFIG.endpoints.contact),
           {
             method: "POST",
             headers: {
@@ -238,9 +237,7 @@ const ContactForm = () => {
 
       try {
         const response = await fetch(
-          process.env.NODE_ENV === "production"
-            ? "https://prakash-enterprises.vercel.app/api/quote"
-            : "http://localhost:5000/api/quote",
+          API_CONFIG.getURL(API_CONFIG.endpoints.quote),
           {
             method: "POST",
             headers: {
@@ -288,12 +285,36 @@ const ContactForm = () => {
   );
 
   // Memoize contact action handlers
-  const handleContactAction = useCallback((action, type) => {
+  const handleContactAction = useCallback((action, type, event) => {
     if (!action) return;
 
-    if (type === "phone" || type === "email") {
+    // Add haptic feedback for mobile devices
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+
+    // Show loading state
+    const button = event?.target?.closest("button");
+    if (button) {
+      const originalText = button.innerHTML;
+      button.innerHTML =
+        '<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>';
+      setTimeout(() => {
+        button.innerHTML = originalText;
+      }, 1000);
+    }
+
+    if (type === "phone") {
+      // For phone calls, use tel: protocol
       window.open(action, "_self");
-    } else if (type === "address" || type === "whatsapp") {
+    } else if (type === "email") {
+      // For emails, use mailto: protocol
+      window.open(action, "_self");
+    } else if (type === "whatsapp") {
+      // For WhatsApp, open in new tab
+      window.open(action, "_blank");
+    } else if (type === "address") {
+      // For address, open Google Maps
       window.open(action, "_blank");
     }
   }, []);
@@ -306,6 +327,34 @@ const ContactForm = () => {
       `https://www.google.com/maps/dir/?api=1&destination=${address}`,
       "_blank"
     );
+  }, []);
+
+  const copyToClipboard = useCallback(async (text, type) => {
+    try {
+      await navigator.clipboard.writeText(text);
+
+      // Show success message
+      const toast = document.createElement("div");
+      toast.className =
+        "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform duration-300";
+      toast.textContent = `${type} copied to clipboard!`;
+      document.body.appendChild(toast);
+
+      // Animate in
+      setTimeout(() => {
+        toast.style.transform = "translateX(0)";
+      }, 100);
+
+      // Animate out and remove
+      setTimeout(() => {
+        toast.style.transform = "translateX(full)";
+        setTimeout(() => {
+          document.body.removeChild(toast);
+        }, 300);
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy: ", err);
+    }
   }, []);
 
   const openQuoteModal = useCallback((type) => {
@@ -417,32 +466,70 @@ const ContactForm = () => {
                                 </p>
                                 {detail.action ? (
                                   <button
-                                    onClick={() =>
+                                    onClick={(e) =>
                                       handleContactAction(
                                         detail.action,
-                                        detail.type
+                                        detail.type,
+                                        e
                                       )
                                     }
                                     className="text-left w-full group/btn"
                                   >
-                                    <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-300 border border-transparent hover:border-blue-200 dark:hover:border-blue-700">
+                                    <div className="flex items-center gap-3 p-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20 transition-all duration-300 border border-transparent hover:border-blue-200 dark:hover:border-blue-700 hover:shadow-lg">
                                       {detail.icon && (
-                                        <detail.icon className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover/btn:text-blue-700 dark:group-hover/btn:text-blue-300 transition-colors duration-300 flex-shrink-0" />
+                                        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0 group-hover/btn:scale-110 transition-all duration-300">
+                                          <detail.icon className="w-5 h-5 text-white" />
+                                        </div>
                                       )}
-                                      <span className="text-gray-900 dark:text-white font-semibold group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400 transition-colors duration-300 break-words text-base flex-1">
-                                        {detail.value}
-                                      </span>
-                                      <ExternalLink className="w-4 h-4 text-gray-400 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400 transition-colors duration-300 flex-shrink-0" />
+                                      <div className="flex-1 text-left">
+                                        <span className="text-gray-900 dark:text-white font-semibold group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400 transition-colors duration-300 break-words text-base block">
+                                          {detail.value}
+                                        </span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400 group-hover/btn:text-blue-500 dark:group-hover/btn:text-blue-300 transition-colors duration-300 block mt-1">
+                                          {detail.type === "phone" &&
+                                            "Tap to call"}
+                                          {detail.type === "email" &&
+                                            "Tap to email"}
+                                          {detail.type === "whatsapp" &&
+                                            "Tap to WhatsApp"}
+                                          {detail.type === "address" &&
+                                            "Tap to open in Maps"}
+                                        </span>
+                                      </div>
+                                      <div className="flex-shrink-0 flex items-center gap-2">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            copyToClipboard(
+                                              detail.value,
+                                              detail.label
+                                            );
+                                          }}
+                                          className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors duration-200"
+                                          title={`Copy ${detail.label}`}
+                                        >
+                                          <FileText className="w-3 h-3 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400" />
+                                        </button>
+                                        <ExternalLink className="w-4 h-4 text-gray-400 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400 transition-colors duration-300" />
+                                      </div>
                                     </div>
                                   </button>
                                 ) : (
-                                  <div className="flex items-center gap-3 p-3">
+                                  <div className="flex items-center gap-3 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50">
                                     {detail.icon && (
-                                      <detail.icon className="w-5 h-5 text-blue-600 dark:text-blue-400 transition-colors duration-300 flex-shrink-0" />
+                                      <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <detail.icon className="w-5 h-5 text-white" />
+                                      </div>
                                     )}
-                                    <p className="text-gray-900 dark:text-white font-semibold transition-colors duration-300 text-base flex-1">
-                                      {detail.value}
-                                    </p>
+                                    <div className="flex-1">
+                                      <p className="text-gray-900 dark:text-white font-semibold transition-colors duration-300 text-base">
+                                        {detail.value}
+                                      </p>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 block mt-1">
+                                        {detail.type === "hours" &&
+                                          "Business Hours"}
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -459,6 +546,41 @@ const ContactForm = () => {
               ))}
             </div>
 
+            {/* Business Hours Highlight */}
+            <motion.div
+              variants={cardVariants}
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+            >
+              <Card className="bg-gradient-to-r from-green-500 to-emerald-500 border-0 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] overflow-hidden">
+                <CardContent className="p-6 text-white">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                        <Clock className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold mb-1">
+                          Business Hours
+                        </h3>
+                        <p className="text-green-100 text-sm">
+                          Monday - Saturday
+                        </p>
+                        <p className="text-white font-semibold">
+                          10:00 AM - 1:30 PM, 5:30 PM - 9:00 PM
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                      <p className="text-xs text-green-100 mt-1">Open Now</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
             {/* Interactive Map */}
             <motion.div
               variants={cardVariants}
@@ -473,19 +595,56 @@ const ContactForm = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {/* Embedded Google Maps */}
-                  <div className="h-64 relative">
-                    <iframe
-                      src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3618.5!2d70.8!3d22.3!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjLCsDE4JzAwLjAiTiA3MMKwNDgnMDAuMCJF!5e0!3m2!1sen!2sin!4v1234567890"
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      allowFullScreen=""
-                      loading="lazy"
-                      referrerPolicy="no-referrer-when-downgrade"
-                      className="rounded-t-lg"
-                      title="Prakash Enterprises Location"
-                    ></iframe>
+                  {/* Interactive Map Section */}
+                  <div className="h-64 relative group overflow-hidden">
+                    {/* Map Placeholder with better styling */}
+                    <div className="w-full h-full bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 relative">
+                      {/* Map Pattern */}
+                      <div className="absolute inset-0 opacity-20">
+                        <div className="absolute top-4 left-4 w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <div className="absolute top-8 left-8 w-1 h-1 bg-purple-500 rounded-full"></div>
+                        <div className="absolute top-12 left-12 w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                        <div className="absolute top-16 left-16 w-1 h-1 bg-purple-400 rounded-full"></div>
+                        <div className="absolute top-20 left-20 w-2 h-2 bg-blue-300 rounded-full"></div>
+                      </div>
+
+                      {/* Location Marker */}
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                        <div className="relative">
+                          <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                            <MapPin className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-red-500"></div>
+                        </div>
+                      </div>
+
+                      {/* Map Overlay */}
+                      <div
+                        className="absolute inset-0 bg-transparent group-hover:bg-black/5 transition-all duration-300 cursor-pointer"
+                        onClick={() =>
+                          handleContactAction(
+                            "https://maps.google.com/?q=Star+Chambers+229+Doctor+Rajendra+Prasad+Road+Panchnath+Plot+Sadar+Rajkot+Gujarat+India",
+                            "address"
+                          )
+                        }
+                      >
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-300">
+                          <p className="text-xs font-semibold text-gray-700">
+                            Click to open in Maps
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Map Controls */}
+                      <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-xs font-semibold text-gray-700">
+                            Live Location
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Location Details */}
@@ -660,6 +819,75 @@ const ContactForm = () => {
               </CardContent>
             </Card>
           </motion.div>
+        </motion.div>
+      </div>
+
+      {/* Floating Quick Contact Buttons */}
+      <div className="fixed bottom-6 right-6 z-40 space-y-3">
+        {/* WhatsApp Button */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 1, duration: 0.5 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <button
+            onClick={(e) =>
+              handleContactAction(
+                "https://wa.me/917383948447?text=Hi! I'm interested in your financial services. Can you help me?",
+                "whatsapp",
+                e
+              )
+            }
+            className="w-14 h-14 bg-green-500 hover:bg-green-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
+            title="Chat on WhatsApp"
+          >
+            <MessageCircle className="w-6 h-6 text-white" />
+            <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
+          </button>
+        </motion.div>
+
+        {/* Call Button */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 1.2, duration: 0.5 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <button
+            onClick={(e) =>
+              handleContactAction("tel:+917383948447", "phone", e)
+            }
+            className="w-14 h-14 bg-blue-500 hover:bg-blue-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
+            title="Call Now"
+          >
+            <Phone className="w-6 h-6 text-white" />
+          </button>
+        </motion.div>
+
+        {/* Email Button */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 1.4, duration: 0.5 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+        >
+          <button
+            onClick={(e) =>
+              handleContactAction(
+                "mailto:prakashenterprise051@gmail.com",
+                "email",
+                e
+              )
+            }
+            className="w-14 h-14 bg-purple-500 hover:bg-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center group"
+            title="Send Email"
+          >
+            <Mail className="w-6 h-6 text-white" />
+          </button>
         </motion.div>
       </div>
 

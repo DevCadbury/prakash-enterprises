@@ -21,7 +21,13 @@
     "setup-dev": "node setup-dev.js",
     "test-all": "node test-all-apis.js",
     "deploy": "bash deploy-to-vercel.sh",
-    "commit": "bash commit-to-github.sh"
+    "commit": "bash commit-to-github.sh",
+    "start-dev": "node start-server.js",
+    "add-test-data": "node add-test-visitors.js",
+    "debug-auth": "node debug-auth.js",
+    "test-endpoints": "node test-endpoints.js",
+    "test-production": "node test-production-apis.js",
+    "deploy-final": "node deploy-final.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -35,6 +41,7 @@
     "helmet": "^7.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.17.0",
+    "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.7",
     "react-router-dom": "^6.30.1"
   },

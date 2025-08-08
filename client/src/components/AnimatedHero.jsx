@@ -95,21 +95,21 @@ const AnimatedHero = () => {
   const stats = useMemo(
     () => [
       {
-        number: "10K+",
+        number: "1K+",
         label: "Happy Clients",
         icon: Heart,
         description: "Trusted by thousands",
         gradient: "from-red-500 via-pink-500 to-rose-500",
       },
       {
-        number: "₹500Cr+",
+        number: "₹20Cr+",
         label: "Loans Disbursed",
         icon: TrendingUp,
         description: "Financial success",
         gradient: "from-green-500 via-emerald-500 to-teal-500",
       },
       {
-        number: "50K+",
+        number: "2K+",
         label: "Insurance Policies",
         icon: Shield,
         description: "Complete protection",
