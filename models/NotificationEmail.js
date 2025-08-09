@@ -5,26 +5,33 @@ const notificationEmailSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ["contact", "loan-application", "quote-request", "promotion", "system"],
-      unique: true,
+      enum: [
+        "contact",
+        "loan-application",
+        "quote-request",
+        "promotion",
+        "system",
+      ],
     },
-    emails: [{
-      email: {
-        type: String,
-        required: true,
-        trim: true,
-        lowercase: true,
+    emails: [
+      {
+        email: {
+          type: String,
+          required: true,
+          trim: true,
+          lowercase: true,
+        },
+        name: {
+          type: String,
+          required: true,
+          trim: true,
+        },
+        isActive: {
+          type: Boolean,
+          default: true,
+        },
       },
-      name: {
-        type: String,
-        required: true,
-        trim: true,
-      },
-      isActive: {
-        type: Boolean,
-        default: true,
-      },
-    }],
+    ],
     isEnabled: {
       type: Boolean,
       default: true,
@@ -45,7 +52,7 @@ const notificationEmailSchema = new mongoose.Schema(
 );
 
 // Index for better query performance
-notificationEmailSchema.index({ type: 1 });
+notificationEmailSchema.index({ type: 1 }, { unique: true });
 notificationEmailSchema.index({ "emails.email": 1 });
 
-module.exports = mongoose.model("NotificationEmail", notificationEmailSchema); 
+module.exports = mongoose.model("NotificationEmail", notificationEmailSchema);

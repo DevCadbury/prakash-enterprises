@@ -7,12 +7,15 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
     "client": "cd client && npm start",
-    "build": "cd client && npm run build",
+    "build": "cd client && npm install && npm run build",
+    "build:client": "cd client && npm install && npm run build",
+    "build:prod": "npm run build:client && echo 'Production build completed'",
+    "vercel-build": "node vercel-build.js",
     "install-client": "cd client && npm install",
     "heroku-postbuild": "npm run install-client && npm run build",
-    "vercel-build": "npm run install-client && npm run build",
-    "build:client": "cd client && npm install && npm run build",
     "start": "node server.js",
+    "start:prod": "set NODE_ENV=production && node server.js",
+    "start:prod:unix": "NODE_ENV=production node server.js",
     "setup": "node setup.js",
     "fix-frontend": "node fix-frontend.js",
     "test-frontend": "node test-frontend.js",
@@ -28,7 +31,8 @@
     "debug-auth": "node debug-auth.js",
     "test-endpoints": "node test-endpoints.js",
     "test-production": "node test-production-apis.js",
-    "deploy-final": "node deploy-final.js"
+    "deploy-final": "node deploy-final.js",
+    "deploy:prod": "node deploy-production.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

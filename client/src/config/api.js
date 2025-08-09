@@ -10,15 +10,9 @@ const API_CONFIG = {
     if (typeof window !== "undefined") {
       // Client-side code
       if (process.env.NODE_ENV === "production") {
-        // In production (Vercel), use the same domain for API calls
-        // This ensures API calls go to the same Vercel deployment
-        // If the domain is different from our expected production URL, use the current domain
-        const currentOrigin = window.location.origin;
-        if (currentOrigin !== API_CONFIG.PRODUCTION_URL) {
-          // Use the current domain (might be a different Vercel deployment)
-          return currentOrigin;
-        }
-        return API_CONFIG.PRODUCTION_URL;
+        // In production, always use the current domain for API calls
+        // This ensures API calls go to the same deployment
+        return window.location.origin;
       }
       return API_CONFIG.DEVELOPMENT_URL;
     } else {
@@ -33,6 +27,18 @@ const API_CONFIG = {
   // Alternative method for explicit production URL
   getProductionURL: () => {
     return API_CONFIG.PRODUCTION_URL;
+  },
+
+  // Environment detection helper
+  isProduction: () => {
+    return process.env.NODE_ENV === "production";
+  },
+
+  // Environment detection helper for client-side
+  isProductionClient: () => {
+    return (
+      typeof window !== "undefined" && window.location.hostname !== "localhost"
+    );
   },
 
   // API Endpoints

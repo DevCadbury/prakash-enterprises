@@ -35,6 +35,7 @@ const TokenBlacklist = require("./models/TokenBlacklist");
 const { auth, requireRole } = require("./middleware/auth");
 
 const app = express();
+// Remove forced development mode - let environment variables control this
 const PORT = process.env.PORT || 5000;
 
 // Trust proxy for rate limiting
@@ -53,13 +54,18 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // For production, only allow specific domains
+    // For production, allow Vercel domains and custom domains
     if (process.env.NODE_ENV === "production") {
       const productionOrigins = [
         "https://prakash-enterprises.vercel.app",
         "https://*.vercel.app",
-      ];
+        "https://*.vercel.app/*",
+        // Add any custom domains here
+        process.env.CUSTOM_DOMAIN,
+      ].filter(Boolean); // Remove undefined values
+
       const isAllowed = productionOrigins.some((allowedOrigin) => {
+        if (!allowedOrigin) return false;
         if (allowedOrigin.includes("*")) {
           return origin.includes(allowedOrigin.replace("*", ""));
         }
@@ -115,18 +121,107 @@ app.use(limiter);
 // Connect to MongoDB
 mongoose
   .connect(
-    process.env.MONGODB_URI || "mongodb://localhost:27017/prakash-enterprises"
+    process.env.MONGODB_URI || "mongodb://localhost:27017/prakash-enterprises",
+    {
+      // Production-ready MongoDB options
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      bufferCommands: false,
+      bufferMaxEntries: 0,
+    }
   )
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => console.error("MongoDB connection error:", err));
+  .then(() => {
+    console.log("✅ Connected to MongoDB successfully");
+    console.log(`📊 Database: ${mongoose.connection.name}`);
+  })
+  .catch((err) => {
+    console.error("❌ MongoDB connection error:", err.message);
+    if (process.env.NODE_ENV === "production") {
+      console.log(
+        "⚠️ Running in production without MongoDB. Some features may not work."
+      );
+      console.log(
+        "💡 Please ensure MONGODB_URI environment variable is set correctly."
+      );
+    } else {
+      console.log(
+        "⚠️ Running in development mode without MongoDB. Some features may not work."
+      );
+    }
+  });
 
-// Serve static files from React build (only in production)
-if (process.env.NODE_ENV === "production") {
-  const buildPath = path.join(__dirname, "client/build");
-  if (fs.existsSync(buildPath)) {
-    app.use(express.static(buildPath));
+// Serve static files from React build (works in both development and production)
+const buildPath = path.join(__dirname, "client/build");
+
+// For Vercel deployment, also check if we're in a serverless environment
+const isVercel =
+  process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+
+if (fs.existsSync(buildPath)) {
+  // Production-ready static file serving
+  app.use(
+    express.static(buildPath, {
+      maxAge: isVercel ? "1y" : "0",
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, path) => {
+        // Set security headers for static files
+        if (path.endsWith(".js")) {
+          res.setHeader("X-Content-Type-Options", "nosniff");
+        }
+        // Ensure proper MIME types for Vercel
+        if (path.endsWith(".css")) {
+          res.setHeader("Content-Type", "text/css");
+        }
+        if (path.endsWith(".js")) {
+          res.setHeader("Content-Type", "application/javascript");
+        }
+      },
+    })
+  );
+  console.log("✅ Static files served from:", buildPath);
+  console.log(`📁 Build directory size: ${getDirectorySize(buildPath)}`);
+} else {
+  if (isVercel) {
+    console.error(
+      "❌ Production build not found! This will cause 404 errors on Vercel."
+    );
+    console.log("💡 Make sure to run 'npm run vercel-build' before deployment");
+  } else if (process.env.NODE_ENV === "production") {
+    console.error(
+      "❌ Production build not found! Run 'npm run build:client' first."
+    );
   } else {
-    console.warn("⚠️ Production build not found. Run 'npm run build' first.");
+    console.warn(
+      "⚠️ Build directory not found. Run 'npm run build:client' first."
+    );
+  }
+}
+
+// Helper function to get directory size
+function getDirectorySize(dirPath) {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+
+    let totalSize = 0;
+    const files = fs.readdirSync(dirPath);
+
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      const stats = fs.statSync(filePath);
+
+      if (stats.isDirectory()) {
+        totalSize += getDirectorySize(filePath);
+      } else {
+        totalSize += stats.size;
+      }
+    }
+
+    return (totalSize / 1024 / 1024).toFixed(2) + " MB";
+  } catch (error) {
+    return "Unknown";
   }
 }
 
@@ -142,6 +237,11 @@ app.get("/api/health", (req, res) => {
 // Clean up expired tokens periodically
 const cleanupExpiredTokens = async () => {
   try {
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      return;
+    }
+
     const result = await TokenBlacklist.deleteMany({
       expiresAt: { $lt: new Date() },
     });
@@ -159,6 +259,12 @@ setInterval(cleanupExpiredTokens, 60 * 60 * 1000);
 // Initialize superadmin and dev account
 const initializeAccounts = async () => {
   try {
+    // Check if MongoDB is connected
+    if (mongoose.connection.readyState !== 1) {
+      console.log("⚠️ MongoDB not connected. Skipping account initialization.");
+      return;
+    }
+
     // Check if dev account exists
     const devAccount = await User.findOne({ email: "prince844121@gmail.com" });
     if (!devAccount) {
@@ -224,9 +330,9 @@ app.get("/api/health", (req, res) => {
         process.env.NODE_ENV === "production"
           ? ["https://prakash-enterprises.vercel.app", "https://*.vercel.app"]
           : [
-              "http://localhost:3000",
-              "http://127.0.0.1:3000",
-              "http://localhost:3001",
+              `http://localhost:${process.env.CLIENT_PORT || 3000}`,
+              `http://127.0.0.1:${process.env.CLIENT_PORT || 3000}`,
+              `http://localhost:${process.env.CLIENT_PORT || 3001}`,
             ],
     },
   });
@@ -1912,40 +2018,119 @@ app.get("/api/admin/notification-emails/:type", auth, async (req, res) => {
   }
 });
 
-// Catch-all route for React app (only in development)
-if (process.env.NODE_ENV !== "production") {
-  app.get("*", (req, res) => {
-    // Skip API routes
-    if (req.path.startsWith("/api/")) {
-      return res.status(404).json({
-        success: false,
-        message: "API endpoint not found",
-      });
+// Catch-all route for React app (works in both development and production)
+app.get("*", (req, res) => {
+  // Skip API routes
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({
+      success: false,
+      message: "API endpoint not found",
+      path: req.path,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Serve React app for all other routes
+  const indexPath = path.join(__dirname, "client/build/index.html");
+  if (fs.existsSync(indexPath)) {
+    // Set appropriate headers for SPA routing
+    const isVercel =
+      process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+    res.setHeader("Cache-Control", isVercel ? "public, max-age=0" : "no-cache");
+
+    // Add Vercel-specific headers
+    if (isVercel) {
+      res.setHeader("X-Vercel-Cache", "HIT");
     }
 
-    // Serve React app for all other routes
-    const indexPath = path.join(__dirname, "client/build/index.html");
-    if (fs.existsSync(indexPath)) {
-      res.sendFile(indexPath);
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        console.error(
+          `❌ Error serving index.html for ${req.path}:`,
+          err.message
+        );
+        res.status(500).json({
+          success: false,
+          message: "Error serving application",
+          path: req.path,
+          error: err.message,
+        });
+      } else {
+        console.log(`✅ Served React app for route: ${req.path}`);
+      }
+    });
+  } else {
+    const isVercel =
+      process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+    let errorMessage;
+
+    if (isVercel) {
+      errorMessage =
+        "Production build not found on Vercel. This will cause 404 errors. Please ensure the build process completed successfully.";
+    } else if (process.env.NODE_ENV === "production") {
+      errorMessage =
+        "Production build not found. Please ensure the build process completed successfully.";
     } else {
-      res.status(404).json({
-        success: false,
-        message:
-          "Production build not found. Please run 'npm run build' first.",
-      });
+      errorMessage =
+        "Build not found. Please run 'npm run build:client' first.";
     }
-  });
-}
+
+    console.error(`❌ ${errorMessage}`);
+    res.status(404).json({
+      success: false,
+      message: errorMessage,
+      path: req.path,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || "development",
+      isVercel: isVercel,
+      buildPath: path.join(__dirname, "client/build"),
+      buildExists: fs.existsSync(path.join(__dirname, "client/build")),
+    });
+  }
+});
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-  console.log(
-    `MongoDB: ${
-      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected"
-    }`
-  );
-  console.log(
-    `Email: ${process.env.EMAIL_USER ? "Configured" : "Not configured"}`
-  );
+  console.log("🚀 Server started successfully!");
+  console.log(`📍 Port: ${PORT}`);
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
+
+  // Show appropriate URL based on environment
+  if (process.env.NODE_ENV === "production") {
+    console.log(
+      `🔗 Production URL: ${
+        process.env.CUSTOM_DOMAIN || "https://prakash-enterprises.vercel.app"
+      }`
+    );
+  } else {
+    console.log(`🔗 Development URL: http://localhost:${PORT}`);
+  }
+
+  // MongoDB status
+  const mongoStatus =
+    mongoose.connection.readyState === 1 ? "✅ Connected" : "❌ Disconnected";
+  console.log(`🗄️  MongoDB: ${mongoStatus}`);
+
+  // Email configuration status
+  const emailStatus = process.env.EMAIL_USER
+    ? "✅ Configured"
+    : "❌ Not configured";
+  console.log(`📧 Email: ${emailStatus}`);
+
+  // Build status
+  const buildPath = path.join(__dirname, "client/build");
+  const buildStatus = fs.existsSync(buildPath)
+    ? "✅ Available"
+    : "❌ Not found";
+  console.log(`🏗️  Frontend Build: ${buildStatus}`);
+
+  if (process.env.NODE_ENV === "production") {
+    console.log("\n🎯 Production Mode Active");
+    console.log("💡 Remember to set all required environment variables");
+    console.log("🔒 Security features are enabled");
+  } else {
+    console.log("\n🔧 Development Mode Active");
+    console.log("💡 MongoDB connection is optional for development");
+  }
+
+  console.log("\n✨ Server is ready to handle requests!");
 });
