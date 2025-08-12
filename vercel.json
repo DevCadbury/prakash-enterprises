@@ -18,8 +18,11 @@
     }
   ],
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/server.js" },
-    { "source": "/(.*)", "destination": "/client/index.html" }
+    { "source": "/api/(.*)", "destination": "/server.js" }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/client/index.html" }
   ],
   "cleanUrls": true,
   "trailingSlash": false,
