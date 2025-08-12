@@ -46,7 +46,8 @@ A comprehensive web application for Prakash Enterprises, offering loan and insur
 
 ### Deployment
 
-- **Vercel** - Hosting platform
+- **Vercel** - Hosting platform (Backend)
+- **Netlify** - Frontend hosting platform
 - **MongoDB Atlas** - Cloud database
 
 ## 🚀 Quick Start
@@ -56,6 +57,11 @@ A comprehensive web application for Prakash Enterprises, offering loan and insur
 - Node.js 16+
 - MongoDB database
 - Email service (Gmail recommended)
+
+### Deployment Options
+
+- **Full Stack (Vercel)**: Deploy both frontend and backend together
+- **Frontend Only (Netlify)**: Deploy only the React frontend (requires separate backend)
 
 ### Installation
 
@@ -99,6 +105,23 @@ A comprehensive web application for Prakash Enterprises, offering loan and insur
 
 ## 🔧 Available Scripts
 
+### Development
+
+```bash
+npm run dev              # Start both frontend and backend
+npm run server           # Start backend only
+npm run client           # Start frontend only
+```
+
+### Build & Deploy
+
+```bash
+npm run build            # Build frontend for production
+npm run build:netlify    # Build specifically for Netlify
+npm run deploy:netlify   # Prepare for Netlify deployment
+npm run deploy:prod      # Deploy to production (Vercel)
+```
+
 ```bash
 # Development
 npm run dev          # Start both server and client
@@ -138,8 +161,8 @@ npm start           # Start production server
 
 ### Default Dev Account
 
-- **Email**: 
-- **Password**: 
+- **Email**:
+- **Password**:
 - **Role**: dev (full access)
 
 ### Role Permissions
@@ -191,15 +214,23 @@ npm start           # Start production server
 prakash-enterprises/
 ├── client/                 # React frontend
 │   ├── public/            # Static files
+│   │   └── _redirects     # Netlify redirects
 │   ├── src/
 │   │   ├── components/    # React components
 │   │   ├── ui/           # UI components
 │   │   └── config/       # API configuration
+│   └── env.example        # Environment variables template
 ├── models/                # MongoDB schemas
 ├── middleware/            # Auth middleware
 ├── utils/                 # Utility functions
 ├── server.js             # Express server
 ├── vercel.json           # Vercel configuration
+├── netlify.toml          # Netlify configuration
+├── deploy-netlify.js     # Netlify deployment script
+├── deploy-netlify.bat    # Windows deployment script
+├── deploy-netlify.sh     # Unix deployment script
+├── NETLIFY-DEPLOYMENT.md # Netlify deployment guide
+├── README-NETLIFY.md     # Netlify quick reference
 └── package.json          # Dependencies
 ```
 
@@ -246,6 +277,12 @@ prakash-enterprises/
 
 This project is licensed under the MIT License.
 
+## 📚 Documentation
+
+- **[NETLIFY-DEPLOYMENT.md](./NETLIFY-DEPLOYMENT.md)** - Complete Netlify deployment guide
+- **[README-NETLIFY.md](./README-NETLIFY.md)** - Quick Netlify reference
+- **[VERCEL-DEPLOYMENT-GUIDE.md](./VERCEL-DEPLOYMENT-GUIDE.md)** - Vercel deployment guide
+
 ## 📞 Support
 
 For support or questions, please contact:
@@ -256,4 +293,3 @@ For support or questions, please contact:
 ---
 
 **Built with ❤️ for Prakash Enterprises**
-

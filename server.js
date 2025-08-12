@@ -42,45 +42,60 @@ const PORT = process.env.PORT || 5000;
 app.set("trust proxy", 1);
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy:
+      process.env.NODE_ENV === "production"
+        ? {
+            directives: {
+              defaultSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              scriptSrc: ["'self'"],
+              imgSrc: ["'self'", "data:", "https:"],
+              connectSrc: ["'self'"],
+              fontSrc: ["'self'"],
+              objectSrc: ["'none'"],
+              mediaSrc: ["'self'"],
+              frameSrc: ["'none'"],
+            },
+          }
+        : false,
+    hsts: process.env.NODE_ENV === "production",
+    noSniff: true,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 // Enhanced CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "http://localhost:5000",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5000",
+    ];
 
-    // For development, always allow localhost regardless of NODE_ENV
-    if (origin.includes("localhost") || origin.includes("127.0.0.1")) {
-      return callback(null, true);
-    }
-
-    // For production, allow Vercel domains and custom domains
-    if (process.env.NODE_ENV === "production") {
-      const productionOrigins = [
+    // Add Vercel URLs if in production
+    if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+      allowedOrigins.push(
         "https://prakash-enterprises.vercel.app",
         "https://*.vercel.app",
-        "https://*.vercel.app/*",
-        // Add any custom domains here
-        process.env.CUSTOM_DOMAIN,
-      ].filter(Boolean); // Remove undefined values
+        "https://*.netlify.app"
+      );
+    }
 
-      const isAllowed = productionOrigins.some((allowedOrigin) => {
-        if (!allowedOrigin) return false;
-        if (allowedOrigin.includes("*")) {
-          return origin.includes(allowedOrigin.replace("*", ""));
-        }
-        return origin === allowedOrigin;
-      });
+    // Add VERCEL_URL if available
+    if (process.env.VERCEL_URL) {
+      allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+    }
 
-      if (isAllowed) {
-        callback(null, true);
-      } else {
-        console.log(`CORS blocked production origin: ${origin}`);
-        callback(new Error("Not allowed by CORS"));
-      }
-    } else {
-      // Development mode - allow all localhost origins
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
       callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
     }
   },
   credentials: true,
@@ -91,65 +106,113 @@ const corsOptions = {
     "X-Requested-With",
     "Accept",
     "Origin",
+    "Access-Control-Request-Method",
+    "Access-Control-Request-Headers"
   ],
-  exposedHeaders: ["Content-Length", "X-Requested-With"],
   preflightContinue: false,
-  optionsSuccessStatus: 204,
+  optionsSuccessStatus: 200
 };
 
+// Apply CORS before rate limiting
 app.use(cors(corsOptions));
 
-// Add CORS preflight handler
+// Handle CORS preflight requests
 app.options("*", cors(corsOptions));
 
-// Debug middleware for CORS issues
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.get("Origin")}`);
-  next();
-});
-
+// Body parsing middleware
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 100 requests per windowMs
+  windowMs:
+    process.env.NODE_ENV === "production" ? 1 * 60 * 1000 : 1 * 60 * 1000, // 1 min in production, 1 min in dev
+  max: process.env.NODE_ENV === "production" ? 100 : 1000, // Stricter in production
+  message: {
+    success: false,
+    message:
+      process.env.NODE_ENV === "production"
+        ? "Too many requests. Please try again later."
+        : "Rate limit exceeded. Please slow down your requests.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
-// Connect to MongoDB
-mongoose
-  .connect(
-    process.env.MONGODB_URI || "mongodb://localhost:27017/prakash-enterprises",
-    {
-      // Production-ready MongoDB options
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      bufferCommands: false,
-      bufferMaxEntries: 0,
-    }
-  )
-  .then(() => {
-    console.log("✅ Connected to MongoDB successfully");
-    console.log(`📊 Database: ${mongoose.connection.name}`);
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection error:", err.message);
-    if (process.env.NODE_ENV === "production") {
-      console.log(
-        "⚠️ Running in production without MongoDB. Some features may not work."
-      );
-      console.log(
-        "💡 Please ensure MONGODB_URI environment variable is set correctly."
-      );
+// Connect to MongoDB with Vercel optimization
+const connectDB = async () => {
+  try {
+    if (process.env.MONGODB_URI) {
+      console.log("🔗 Connecting to MongoDB...");
+
+      await mongoose.connect(process.env.MONGODB_URI, {
+        // Production-ready MongoDB options
+        maxPoolSize: 10,
+        serverSelectionTimeoutMS: 15000, // Increased for production
+        socketTimeoutMS: 45000,
+        bufferCommands: true,
+        // Vercel-specific optimizations
+        maxIdleTimeMS: 30000,
+        minPoolSize: 1,
+        // Connection pool settings
+        maxConnecting: 2,
+        // Timeout settings
+        connectTimeoutMS: 15000,
+        heartbeatFrequencyMS: 10000,
+        // Production optimizations
+        autoIndex: false, // Disable auto-indexing in production
+        autoCreate: false, // Disable auto-collection creation
+      });
+
+      console.log("✅ MongoDB connected successfully");
+      return true;
     } else {
-      console.log(
-        "⚠️ Running in development mode without MongoDB. Some features may not work."
-      );
+      console.log("⚠️ MONGODB_URI not set");
+      return false;
     }
-  });
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    return false;
+  }
+};
+
+// Global variable to track MongoDB connection status
+let isMongoConnected = false;
+
+// Connect to database
+const initializeDatabase = async () => {
+  isMongoConnected = await connectDB();
+  return isMongoConnected;
+};
+
+// Initialize database on startup
+initializeDatabase();
+
+// Helper function to check if MongoDB is ready
+const isMongoReady = () => {
+  return mongoose.connection.readyState === 1;
+};
+
+// Middleware to check MongoDB connection for database operations
+const requireMongoDB = (req, res, next) => {
+  if (!isMongoReady()) {
+    const errorMessage =
+      process.env.NODE_ENV === "production"
+        ? "Service temporarily unavailable. Please try again later."
+        : "Database is not available. Please try again later.";
+
+    return res.status(503).json({
+      success: false,
+      message: errorMessage,
+      error:
+        process.env.NODE_ENV === "production"
+          ? undefined
+          : "MongoDB connection not established",
+    });
+  }
+  next();
+};
 
 // Serve static files from React build (works in both development and production)
 const buildPath = path.join(__dirname, "client/build");
@@ -180,57 +243,48 @@ if (fs.existsSync(buildPath)) {
       },
     })
   );
-  console.log("✅ Static files served from:", buildPath);
-  console.log(`📁 Build directory size: ${getDirectorySize(buildPath)}`);
+  console.log("✅ Static files served from build directory");
 } else {
   if (isVercel) {
-    console.error(
-      "❌ Production build not found! This will cause 404 errors on Vercel."
-    );
-    console.log("💡 Make sure to run 'npm run vercel-build' before deployment");
+    console.error("❌ Production build not found on Vercel");
   } else if (process.env.NODE_ENV === "production") {
-    console.error(
-      "❌ Production build not found! Run 'npm run build:client' first."
-    );
+    console.error("❌ Production build not found");
   } else {
-    console.warn(
-      "⚠️ Build directory not found. Run 'npm run build:client' first."
-    );
-  }
-}
-
-// Helper function to get directory size
-function getDirectorySize(dirPath) {
-  try {
-    const fs = require("fs");
-    const path = require("path");
-
-    let totalSize = 0;
-    const files = fs.readdirSync(dirPath);
-
-    for (const file of files) {
-      const filePath = path.join(dirPath, file);
-      const stats = fs.statSync(filePath);
-
-      if (stats.isDirectory()) {
-        totalSize += getDirectorySize(filePath);
-      } else {
-        totalSize += stats.size;
-      }
-    }
-
-    return (totalSize / 1024 / 1024).toFixed(2) + " MB";
-  } catch (error) {
-    return "Unknown";
+    console.warn("⚠️ Build directory not found");
   }
 }
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
+  const mongoStatus =
+    mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+  const mongoState = {
+    0: "Disconnected",
+    1: "Connected",
+    2: "Connecting",
+    3: "Disconnecting",
+  };
+
   res.json({
+    success: true,
     status: "OK",
+    message: "Server is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || "development",
+    mongoStatus: mongoStatus,
+    mongoState: mongoState[mongoose.connection.readyState] || "Unknown",
+    mongoReadyState: mongoose.connection.readyState,
+    isMongoConnected: isMongoConnected,
+    cors: {
+      origin:
+        process.env.NODE_ENV === "production" || process.env.VERCEL === "1"
+          ? ["https://prakash-enterprises.vercel.app", "https://*.vercel.app"]
+          : [
+              `http://localhost:${process.env.CLIENT_PORT || 3000}`,
+              `http://127.0.0.1:${process.env.CLIENT_PORT || 3000}`,
+              `http://localhost:${process.env.CLIENT_PORT || 3001}`,
+            ],
+    },
   });
 });
 
@@ -261,7 +315,11 @@ const initializeAccounts = async () => {
   try {
     // Check if MongoDB is connected
     if (mongoose.connection.readyState !== 1) {
-      console.log("⚠️ MongoDB not connected. Skipping account initialization.");
+      if (process.env.NODE_ENV === "production") {
+        console.log(
+          "⚠️ MongoDB not connected. Admin features will be limited."
+        );
+      }
       return;
     }
 
@@ -275,16 +333,20 @@ const initializeAccounts = async () => {
         role: "dev",
         isDev: true,
       });
-      console.log("Dev account created successfully");
+      console.log("✅ Dev account created");
     } else if (!devAccount.isDev) {
       // Update existing account to be dev account
       devAccount.isDev = true;
       devAccount.role = "dev";
       await devAccount.save();
-      console.log("Existing account updated to dev account");
+      console.log("✅ Dev account updated");
     }
   } catch (error) {
-    console.error("Error creating dev account:", error);
+    if (process.env.NODE_ENV === "production") {
+      console.error("❌ Critical: Failed to initialize admin accounts");
+    } else {
+      console.error("Error creating dev account:", error);
+    }
   }
 };
 
@@ -316,28 +378,6 @@ const logAdminAction = async (
   }
 };
 
-// Health check endpoint
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Server is running",
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
-    mongoStatus:
-      mongoose.connection.readyState === 1 ? "Connected" : "Disconnected",
-    cors: {
-      origin:
-        process.env.NODE_ENV === "production"
-          ? ["https://prakash-enterprises.vercel.app", "https://*.vercel.app"]
-          : [
-              `http://localhost:${process.env.CLIENT_PORT || 3000}`,
-              `http://127.0.0.1:${process.env.CLIENT_PORT || 3000}`,
-              `http://localhost:${process.env.CLIENT_PORT || 3001}`,
-            ],
-    },
-  });
-});
-
 // Test endpoint to check if server is working
 app.get("/api/test", (req, res) => {
   res.json({
@@ -361,7 +401,7 @@ app.get("/api/admin/test", (req, res) => {
 });
 
 // Test email notification endpoint
-app.post("/api/test-email", async (req, res) => {
+app.post("/api/test-email", requireMongoDB, async (req, res) => {
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       return res.json({
@@ -393,7 +433,7 @@ app.post("/api/test-email", async (req, res) => {
 });
 
 // Contact form endpoint
-app.post("/api/contact", async (req, res) => {
+app.post("/api/contact", requireMongoDB, async (req, res) => {
   try {
     const { name, email, phone, message } = req.body;
 
@@ -402,15 +442,6 @@ app.post("/api/contact", async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Name, email, and message are required",
-      });
-    }
-
-    // Check MongoDB connection
-    if (mongoose.connection.readyState !== 1) {
-      console.error("MongoDB not connected");
-      return res.status(500).json({
-        success: false,
-        message: "Database connection error",
       });
     }
 
@@ -423,8 +454,6 @@ app.post("/api/contact", async (req, res) => {
       status: "new",
     });
 
-    console.log("✅ Contact saved to database:", contact._id);
-
     // Create notification for admin
     try {
       await Notification.create({
@@ -434,7 +463,6 @@ app.post("/api/contact", async (req, res) => {
         relatedId: contact._id,
         relatedModel: "Contact",
       });
-      console.log("✅ Notification created for new contact");
     } catch (notificationError) {
       console.log(
         "❌ Failed to create notification:",
@@ -445,44 +473,35 @@ app.post("/api/contact", async (req, res) => {
     // Send notification email to configured recipients (optional - only if email is configured)
     try {
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        console.log(
-          "📧 Sending contact notification to configured recipients..."
-        );
         const notificationResult = await sendContactNotification({
           name,
           email,
           phone,
           message,
         });
-        console.log(
-          `✅ Contact notification result: ${notificationResult.successful} successful, ${notificationResult.failed} failed out of ${notificationResult.total} recipients`
-        );
-      } else {
-        console.log("ℹ️ Email not configured - contact saved to database only");
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `✅ Contact notification sent: ${notificationResult.successful}/${notificationResult.total}`
+          );
+        }
       }
     } catch (emailError) {
-      console.log(
-        "❌ Email notification failed (continuing without email):",
-        emailError.message
-      );
-      console.error("Notification error details:", emailError);
+      console.log("❌ Email notification failed:", emailError.message);
     }
 
     // Send confirmation email to customer (optional - only if email is configured)
     try {
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        console.log(`📧 Sending confirmation email to customer: ${email}`);
         await sendContactConfirmation({ name, email, phone, message });
-        console.log("✅ Contact confirmation sent to customer");
-      } else {
-        console.log("ℹ️ Email not configured - customer confirmation not sent");
+        if (process.env.NODE_ENV === "development") {
+          console.log("✅ Customer confirmation sent");
+        }
       }
     } catch (confirmationError) {
       console.log(
-        "❌ Customer confirmation email failed (continuing without email):",
+        "❌ Customer confirmation failed:",
         confirmationError.message
       );
-      console.error("Confirmation error details:", confirmationError);
     }
 
     res.json({
@@ -506,6 +525,28 @@ app.post("/api/contact", async (req, res) => {
 
 // Admin Authentication Routes
 app.post("/api/admin/verify-token", auth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      user: {
+        id: req.user._id,
+        email: req.user.email,
+        name: req.user.name || "Admin",
+        role: req.user.role,
+        isDev: req.user.isDev,
+      },
+    });
+  } catch (error) {
+    console.error("Token verification error:", error);
+    res.status(401).json({
+      success: false,
+      message: "Invalid token",
+    });
+  }
+});
+
+// Add GET method for verify-token as well
+app.get("/api/admin/verify-token", auth, async (req, res) => {
   try {
     res.json({
       success: true,
@@ -571,7 +612,7 @@ app.post("/api/admin/logout", auth, async (req, res) => {
   }
 });
 
-app.post("/api/admin/login", async (req, res) => {
+app.post("/api/admin/login", requireMongoDB, async (req, res) => {
   try {
     const { email, password, rememberMe } = req.body;
     console.log("Login attempt for:", email, "Remember me:", rememberMe);
@@ -666,7 +707,7 @@ app.post("/api/admin/login", async (req, res) => {
 });
 
 // Forgot password endpoint
-app.post("/api/admin/forgot-password", async (req, res) => {
+app.post("/api/admin/forgot-password", requireMongoDB, async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -724,7 +765,7 @@ app.post("/api/admin/forgot-password", async (req, res) => {
 });
 
 // Reset password endpoint
-app.post("/api/admin/reset-password", async (req, res) => {
+app.post("/api/admin/reset-password", requireMongoDB, async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
 
@@ -865,86 +906,6 @@ app.get("/api/admin/contacts", auth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch contacts",
-    });
-  }
-});
-
-// Update contact
-app.put("/api/admin/contacts/:id", auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, email, phone, message, status } = req.body;
-
-    const contact = await Contact.findByIdAndUpdate(
-      id,
-      { name, email, phone, message, status },
-      { new: true }
-    );
-
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact not found",
-      });
-    }
-
-    res.json({
-      success: true,
-      data: contact,
-      message: "Contact updated successfully",
-    });
-  } catch (error) {
-    console.error("Update contact error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to update contact",
-    });
-  }
-});
-
-// Send email to contact
-app.post("/api/admin/contacts/:id/email", auth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { subject, message } = req.body;
-
-    const contact = await Contact.findById(id);
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact not found",
-      });
-    }
-
-    // Send email to contact
-    try {
-      if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        await sendReplyToCustomer(
-          contact.email,
-          contact.name,
-          message,
-          req.user.name || "Admin"
-        );
-        console.log("✅ Email sent to contact:", contact.email);
-      } else {
-        console.log("ℹ️ Email not configured - email not sent");
-      }
-    } catch (emailError) {
-      console.log(
-        "❌ Email sending failed (continuing without email):",
-        emailError.message
-      );
-    }
-
-    res.json({
-      success: true,
-      message: "Email sent successfully",
-    });
-  } catch (error) {
-    console.error("Send email error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to send email",
     });
   }
 });
@@ -1576,7 +1537,7 @@ app.get("/api/admin/promotions", auth, async (req, res) => {
 });
 
 // Visitor tracking endpoint
-app.post("/api/visitor", async (req, res) => {
+app.post("/api/visitor", requireMongoDB, async (req, res) => {
   try {
     const {
       page = "home",
@@ -1780,7 +1741,7 @@ app.get("/api/admin/recent-visitors", auth, async (req, res) => {
 });
 
 // Quote and Application submission endpoint
-app.post("/api/quote", async (req, res) => {
+app.post("/api/quote", requireMongoDB, async (req, res) => {
   try {
     const {
       name,
@@ -1814,8 +1775,6 @@ app.post("/api/quote", async (req, res) => {
       amount: amount,
     });
 
-    console.log("✅ Quote/Application saved to database:", contact._id);
-
     // Create notification for admin
     const notification = new Notification({
       title: `${type === "apply" ? "New Application" : "New Quote Request"}`,
@@ -1830,7 +1789,6 @@ app.post("/api/quote", async (req, res) => {
     });
 
     await notification.save();
-    console.log("✅ Notification created for quote/application");
 
     // Send email notification to admin
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -1843,9 +1801,11 @@ app.post("/api/quote", async (req, res) => {
             service,
             message,
           });
-          console.log(
-            `✅ Loan application notification result: ${notificationResult.successful} successful, ${notificationResult.failed} failed out of ${notificationResult.total} recipients`
-          );
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              `✅ Loan application notification: ${notificationResult.successful}/${notificationResult.total}`
+            );
+          }
         } else {
           const notificationResult = await sendQuoteRequestNotification({
             name,
@@ -1855,9 +1815,11 @@ app.post("/api/quote", async (req, res) => {
             amount,
             message,
           });
-          console.log(
-            `✅ Quote request notification result: ${notificationResult.successful} successful, ${notificationResult.failed} failed out of ${notificationResult.total} recipients`
-          );
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              `✅ Quote request notification: ${notificationResult.successful}/${notificationResult.total}`
+            );
+          }
         }
       } catch (emailError) {
         console.error("Error sending email notification:", emailError);
@@ -1867,7 +1829,6 @@ app.post("/api/quote", async (req, res) => {
     // Send confirmation email to customer
     try {
       if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-        console.log(`📧 Sending confirmation email to customer: ${email}`);
         await sendContactConfirmation({
           name,
           email,
@@ -1876,16 +1837,15 @@ app.post("/api/quote", async (req, res) => {
             amount ? ` | Amount: ₹${amount}` : ""
           }${message ? ` | Additional Info: ${message}` : ""}`,
         });
-        console.log("✅ Quote/Application confirmation sent to customer");
-      } else {
-        console.log("ℹ️ Email not configured - customer confirmation not sent");
+        if (process.env.NODE_ENV === "development") {
+          console.log("✅ Customer confirmation sent");
+        }
       }
     } catch (confirmationError) {
       console.log(
-        "❌ Customer confirmation email failed (continuing without email):",
+        "❌ Customer confirmation failed:",
         confirmationError.message
       );
-      console.error("Confirmation error details:", confirmationError);
     }
 
     res.json({
@@ -2055,8 +2015,6 @@ app.get("*", (req, res) => {
           path: req.path,
           error: err.message,
         });
-      } else {
-        console.log(`✅ Served React app for route: ${req.path}`);
       }
     });
   } else {
@@ -2089,13 +2047,14 @@ app.get("*", (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Server startup for both development and Vercel
+const startServer = () => {
   console.log("🚀 Server started successfully!");
   console.log(`📍 Port: ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || "development"}`);
 
   // Show appropriate URL based on environment
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
     console.log(
       `🔗 Production URL: ${
         process.env.CUSTOM_DOMAIN || "https://prakash-enterprises.vercel.app"
@@ -2123,14 +2082,37 @@ app.listen(PORT, () => {
     : "❌ Not found";
   console.log(`🏗️  Frontend Build: ${buildStatus}`);
 
+  // Production-specific information
   if (process.env.NODE_ENV === "production") {
     console.log("\n🎯 Production Mode Active");
-    console.log("💡 Remember to set all required environment variables");
-    console.log("🔒 Security features are enabled");
-  } else {
-    console.log("\n🔧 Development Mode Active");
-    console.log("💡 MongoDB connection is optional for development");
+    console.log("🔒 Security features enabled");
+    console.log("⚡ Rate limiting: 100 requests per 15 minutes");
+    console.log("🛡️  Content Security Policy enabled");
   }
 
   console.log("\n✨ Server is ready to handle requests!");
+};
+
+// Global error handler for uncaught exceptions
+process.on("uncaughtException", (error) => {
+  console.error("❌ Uncaught Exception:", error);
+  if (process.env.NODE_ENV === "production") {
+    process.exit(1);
+  }
 });
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  if (process.env.NODE_ENV === "production") {
+    process.exit(1);
+  }
+});
+
+// Start server only if not in Vercel serverless environment
+if (process.env.VERCEL !== "1") {
+  app.listen(PORT, startServer);
+} else {
+  // For Vercel, just log that we're ready
+  startServer();
+  console.log("🔄 Running in Vercel serverless environment");
+}

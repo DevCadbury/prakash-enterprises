@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Professional landing page for PRAKASH ENTERPRISES - Loans & Insurance Services",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "nodemon server.js",
@@ -10,6 +13,8 @@
     "build": "cd client && npm install && npm run build",
     "build:client": "cd client && npm install && npm run build",
     "build:prod": "npm run build:client && echo 'Production build completed'",
+    "build:production": "node build-production.js",
+    "build:netlify": "cd client && npm install && npm run build",
     "vercel-build": "node vercel-build.js",
     "install-client": "cd client && npm install",
     "heroku-postbuild": "npm run install-client && npm run build",
@@ -24,7 +29,7 @@
     "check-dev": "node start-dev.js",
     "setup-dev": "node setup-dev.js",
     "test-all": "node test-all-apis.js",
-    "deploy": "bash deploy-to-vercel.sh",
+    "deploy": "bash deploy-to-github.sh",
     "commit": "bash commit-to-github.sh",
     "start-dev": "node start-server.js",
     "add-test-data": "node add-test-visitors.js",
@@ -32,7 +37,15 @@
     "test-endpoints": "node test-endpoints.js",
     "test-production": "node test-production-apis.js",
     "deploy-final": "node deploy-final.js",
-    "deploy:prod": "node deploy-production.js"
+    "deploy:prod": "node deploy-production.js",
+    "deploy:netlify": "npm run build:netlify && echo 'Netlify build completed'",
+    "vercel": "vercel --prod",
+    "deploy:vercel:complete": "node deploy-vercel-complete.js",
+    "test-apis": "node test-apis.js",
+    "test-apis:vercel": "node test-apis.js --url https://prakash-enterprises.vercel.app",
+    "test-cors": "node test-cors.js",
+    "test-mongodb": "node test-mongodb.js",
+    "test-admin-auth": "node test-admin-auth.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -47,10 +60,11 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.17.0",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^6.9.7",
-    "react-router-dom": "^6.30.1"
+    "nodemailer": "^6.9.7"
   },
   "devDependencies": {
+    "axios": "^1.11.0",
+    "colors": "^1.4.0",
     "concurrently": "^8.2.2",
     "nodemon": "^3.0.2"
   },

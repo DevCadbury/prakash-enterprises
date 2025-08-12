@@ -1,0 +1,84 @@
+# Development files
+node_modules/
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build artifacts
+client/build/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Temporary files
+*.tmp
+*.temp
+
+# Development scripts
+deploy-*.js
+deploy-*.sh
+deploy-*.bat
+fix-*.js
+setup-*.js
+start-*.js
+test-*.js
+debug-*.js
+commit-*.js
+create*.js
+add-*.js
+build-*.js
+final-*.js
+
+# Documentation
+*.md
+README-*.md
+*-DEPLOYMENT*.md
+*-GUIDE*.md
+*-SUMMARY*.md
+*-IMPROVEMENTS*.md
+*-ERROR*.md
+*-FIX*.md
+
+# Netlify files (not needed for Vercel)
+netlify.toml
+netlify/
+
+# Vercel files (keep these)
+!.vercel/
+!vercel.json
+!vercel-build.js
+!vercel.env.example

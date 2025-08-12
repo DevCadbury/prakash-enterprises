@@ -5,13 +5,23 @@ const path = require("path");
 console.log("🚀 Starting Vercel build process...");
 
 try {
-  // Step 1: Install root dependencies
-  console.log("📦 Installing root dependencies...");
-  execSync("npm install", { stdio: "inherit" });
+  // Step 1: Install root dependencies (skip if already installed)
+  console.log("📦 Checking root dependencies...");
+  if (!fs.existsSync("node_modules")) {
+    console.log("📦 Installing root dependencies...");
+    execSync("npm install", { stdio: "inherit" });
+  } else {
+    console.log("✅ Root dependencies already installed");
+  }
 
-  // Step 2: Install client dependencies
-  console.log("📦 Installing client dependencies...");
-  execSync("cd client && npm install", { stdio: "inherit" });
+  // Step 2: Install client dependencies (skip if already installed)
+  console.log("📦 Checking client dependencies...");
+  if (!fs.existsSync("client/node_modules")) {
+    console.log("📦 Installing client dependencies...");
+    execSync("cd client && npm install", { stdio: "inherit" });
+  } else {
+    console.log("✅ Client dependencies already installed");
+  }
 
   // Step 3: Build the client for production
   console.log("🔨 Building client for production...");
@@ -44,6 +54,63 @@ try {
     } else {
       console.log(`✅ Found: ${file}`);
     }
+  }
+
+  // Step 7: Create .vercelignore if it doesn't exist
+  const vercelIgnorePath = path.join(__dirname, ".vercelignore");
+  if (!fs.existsSync(vercelIgnorePath)) {
+    const ignoreContent = `# Development files
+node_modules/
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build artifacts
+client/build/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Temporary files
+*.tmp
+*.temp
+`;
+    fs.writeFileSync(vercelIgnorePath, ignoreContent);
+    console.log("✅ Created .vercelignore file");
   }
 
   console.log("🎉 Vercel build completed successfully!");
