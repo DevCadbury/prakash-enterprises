@@ -13,7 +13,8 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["models/**", "middleware/**", "utils/**"]
+        "includeFiles": ["models/**", "middleware/**", "utils/**"],
+        "maxDuration": 30
       }
     }
   ],
@@ -47,10 +48,5 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" }
       ]
     }
-  ],
-  "functions": {
-    "server.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
