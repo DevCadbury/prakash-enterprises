@@ -13,14 +13,15 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["models/**", "middleware/**", "utils/**"],
-        "maxDuration": 30
+        "includeFiles": ["models/**", "middleware/**", "utils/**"]
       }
     }
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/server.js" },
-    { "source": "/((?!api).*)", "destination": "/client/index.html" }
+    { "source": "/admin", "destination": "/client/index.html" },
+    { "source": "/admin/(.*)", "destination": "/client/index.html" },
+    { "source": "/(.*)", "destination": "/client/$1" }
   ],
   "cleanUrls": true,
   "trailingSlash": false,
@@ -28,7 +29,10 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
         {
           "key": "Access-Control-Allow-Methods",
           "value": "GET, POST, PUT, DELETE, OPTIONS, PATCH"
@@ -37,15 +41,27 @@
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type, Authorization, X-Requested-With, Accept, Origin"
         },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" }
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
       ]
     }
   ]
